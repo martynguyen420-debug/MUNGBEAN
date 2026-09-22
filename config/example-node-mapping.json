@@ -1,0 +1,8 @@
+{
+  "prompt": "6.inputs.text",
+  "negative": "7.inputs.text",
+  "seed": "3.inputs.seed",
+  "steps": "3.inputs.steps",
+  "denoise": "3.inputs.denoise",
+  "image": "1.inputs.image"
+}
