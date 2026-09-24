@@ -12,6 +12,8 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent
 DIST = ROOT / "dist"
+WORKFLOW_DIR = ROOT / "config" / "workflows"
+ROUTES = ("klein_9b", "aisha_9b", "qwen_edit", "wan_fast", "wan_quality")
 HOST = os.getenv("IMAGINE_HOST", "0.0.0.0")
 PORT = int(os.getenv("IMAGINE_PORT", "7865"))
 COMFY = os.getenv("COMFY_URL", "http://127.0.0.1:8188").rstrip("/")
@@ -72,7 +74,33 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
         self.end_headers()
 
+    def workflow_payload(self, route: str):
+        if route not in ROUTES:
+            return None
+        path = WORKFLOW_DIR / f"{route}.json"
+        if not path.is_file():
+            return {"route": route, "configured": False}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            workflow = raw.get("prompt", raw)
+            mapping = raw.get("_genesis_mapping", {})
+            return {"route": route, "configured": True, "workflow": workflow, "mapping": mapping}
+        except Exception as exc:
+            return {"route": route, "configured": False, "error": str(exc)}
+
     def do_GET(self):
+        if self.path == "/api/workflows":
+            items = [self.workflow_payload(route) for route in ROUTES]
+            return self.send_json(200, {"routes": [
+                {k: v for k, v in item.items() if k not in {"workflow", "mapping"}}
+                for item in items
+            ]})
+        if self.path.startswith("/api/workflow/"):
+            route = self.path.split("/api/workflow/", 1)[1].split("?", 1)[0]
+            item = self.workflow_payload(route)
+            if item is None:
+                return self.send_json(404, {"error": "Unknown route"})
+            return self.send_json(200 if item.get("configured") else 404, item)
         if self.path == "/api/status":
             result = {
                 "comfy": False,

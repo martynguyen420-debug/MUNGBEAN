@@ -26,6 +26,8 @@ The brain launcher prefers the 27B model and automatically falls back to the exi
 
 ## Workflow setup
 
-Export each ComfyUI graph in **API format**, choose its matching mode in the GUI, then load it under **Connection & workflow**. The GUI detects common prompt, negative, seed, steps, denoise, and image inputs; the mapping can be corrected manually.
+GENESIS Imagine now supports automatic per-route workflows. Put API-format ComfyUI graphs in `config/workflows/` as `klein_9b.json`, `aisha_9b.json`, `qwen_edit.json`, `wan_fast.json`, or `wan_quality.json`.
+
+The UI selects the matching workflow automatically for the chosen/brain-routed mode. Common prompt, negative, seed, steps, denoise, width, height, image and LoRA inputs are auto-detected. Manual workflow loading remains under **Connection & workflow** as a fallback.
 
 No model weights belong in this repository.
