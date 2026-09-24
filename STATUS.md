@@ -8,6 +8,7 @@
 - WAN Fast uses the local official 4-step LightX2V-style graph.
 - WAN Quality uses the non-LightX2V 20-step high/low-noise settings with a 10-step handoff.
 - Route configuration does not claim that every referenced model weight is installed on the currently selected ComfyUI backend.
+- Live backend readiness now checks ComfyUI `/object_info` for required node classes and model/LoRA filenames; routes that cannot run on the selected backend are disabled before submission.
 - Unconfigured modes, if any are added later, are disabled in the UI.
 - Prompt, negative prompt, seed, steps, edit strength, aspect ratio, reference image and LoRA controls.
 - Generate, Stop, preview, download and session history.

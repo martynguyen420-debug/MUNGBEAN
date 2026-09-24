@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GENESIS Imagine RunPod server: static UI, ComfyUI proxy and local brain router."""
+"""MUNGBEAN Grok Imagine server: static UI, ComfyUI proxy and optional local brain router."""
 
 from __future__ import annotations
 
@@ -19,10 +19,8 @@ PORT = int(os.getenv("IMAGINE_PORT", "7865"))
 COMFY = os.getenv("COMFY_URL", "http://127.0.0.1:8188").rstrip("/")
 BRAIN = os.getenv("BRAIN_URL", "http://127.0.0.1:8090/v1").rstrip("/")
 BRAIN_MODEL = os.getenv("BRAIN_MODEL", "imagine-brain")
-POWER_MODEL = Path("/workspace/ComfyUI/models/LLM/powerful-brain/Qwen3.5-27B-Uncensored-HauhauCS-Aggressive-Q4_K_M.gguf")
-POWER_MMPROJ = Path("/workspace/ComfyUI/models/LLM/powerful-brain/mmproj-Qwen3.5-27B-Uncensored-HauhauCS-Aggressive-f16.gguf")
 
-ROUTER_SYSTEM = """You are the routing and prompt-planning brain for GENESIS Imagine.
+ROUTER_SYSTEM = """You are the routing and prompt-planning brain for MUNGBEAN Grok Imagine.
 Return exactly one JSON object and no markdown. Choose one route:
 qwen_edit for precise image editing or identity/clothing/object transfer;
 klein_9b for high-quality image generation or flexible reference editing;
@@ -106,9 +104,6 @@ class Handler(SimpleHTTPRequestHandler):
                 "comfy": False,
                 "brain": False,
                 "brain_model": BRAIN_MODEL,
-                "powerful_27b_downloaded": POWER_MODEL.is_file() and POWER_MMPROJ.is_file(),
-                "powerful_model_bytes": POWER_MODEL.stat().st_size if POWER_MODEL.is_file() else 0,
-                "powerful_mmproj_bytes": POWER_MMPROJ.stat().st_size if POWER_MMPROJ.is_file() else 0,
             }
             try:
                 request_json(f"{COMFY}/system_stats", timeout=3)
@@ -188,7 +183,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print(f"GENESIS Imagine: http://{HOST}:{PORT}")
+    print(f"MUNGBEAN Grok Imagine: http://{HOST}:{PORT}")
     print(f"ComfyUI backend: {COMFY}")
     print(f"Brain backend: {BRAIN}")
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

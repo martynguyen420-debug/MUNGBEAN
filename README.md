@@ -38,4 +38,6 @@ GENESIS Imagine now supports automatic per-route workflows. Put API-format Comfy
 
 The UI selects the matching workflow automatically for the chosen/brain-routed mode. Common prompt, negative, seed, steps, denoise, width, height, image and LoRA inputs are auto-detected. Manual workflow loading remains under **Connection & workflow** as a fallback.
 
+When ComfyUI is online, the UI also checks `/object_info` for every route. A route is only treated as backend-ready when all required node classes and referenced model/LoRA filenames are offered by that ComfyUI instance. Missing routes are disabled with the missing nodes/models shown in the button tooltip.
+
 No model weights belong in this repository.
