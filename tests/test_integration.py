@@ -76,8 +76,9 @@ class IntegrationTest(unittest.TestCase):
         registry = self.get_json("/api/workflows")
         routes = {item["route"]: item["configured"] for item in registry["routes"]}
         self.assertEqual(set(routes), {"klein_9b", "aisha_9b", "qwen_edit", "wan_fast", "wan_quality"})
-        self.assertTrue(routes["klein_9b"])
-        for route in ("aisha_9b", "qwen_edit", "wan_fast", "wan_quality"):
+        for route in ("klein_9b", "aisha_9b", "qwen_edit"):
+            self.assertTrue(routes[route])
+        for route in ("wan_fast", "wan_quality"):
             self.assertFalse(routes[route])
 
     def test_brain_route(self):

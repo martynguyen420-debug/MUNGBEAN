@@ -1,0 +1,163 @@
+{
+  "prompt": {
+    "9": {
+      "class_type": "RandomNoise",
+      "inputs": {
+        "noise_seed": 1
+      }
+    },
+    "1": {
+      "class_type": "UNETLoader",
+      "inputs": {
+        "unet_name": "aisha_nsfw_beta_v9_7_distilled_bf16.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    "2": {
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen_3_8b_fp8mixed.safetensors",
+        "type": "flux2",
+        "device": "default"
+      }
+    },
+    "4": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "placeholder prompt",
+        "clip": [
+          "2",
+          0
+        ]
+      }
+    },
+    "3": {
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "flux2-vae.safetensors"
+      }
+    },
+    "17": {
+      "class_type": "ReferenceLatent",
+      "inputs": {
+        "conditioning": [
+          "4",
+          0
+        ]
+      }
+    },
+    "5": {
+      "class_type": "ConditioningZeroOut",
+      "inputs": {
+        "conditioning": [
+          "4",
+          0
+        ]
+      }
+    },
+    "18": {
+      "class_type": "ReferenceLatent",
+      "inputs": {
+        "conditioning": [
+          "5",
+          0
+        ]
+      }
+    },
+    "6": {
+      "class_type": "CFGGuider",
+      "inputs": {
+        "cfg": 1.0,
+        "model": [
+          "1",
+          0
+        ],
+        "positive": [
+          "17",
+          0
+        ],
+        "negative": [
+          "18",
+          0
+        ]
+      }
+    },
+    "23": {
+      "class_type": "KSamplerSelect",
+      "inputs": {
+        "sampler_name": "euler"
+      }
+    },
+    "7": {
+      "class_type": "Flux2Scheduler",
+      "inputs": {
+        "steps": 5,
+        "width": 1920,
+        "height": 1520
+      }
+    },
+    "8": {
+      "class_type": "EmptyFlux2LatentImage",
+      "inputs": {
+        "width": 1920,
+        "height": 1520,
+        "batch_size": 1
+      }
+    },
+    "24": {
+      "class_type": "SamplerCustomAdvanced",
+      "inputs": {
+        "noise": [
+          "9",
+          0
+        ],
+        "guider": [
+          "6",
+          0
+        ],
+        "sampler": [
+          "23",
+          0
+        ],
+        "sigmas": [
+          "7",
+          0
+        ],
+        "latent_image": [
+          "8",
+          0
+        ]
+      }
+    },
+    "25": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "24",
+          0
+        ],
+        "vae": [
+          "3",
+          0
+        ]
+      }
+    },
+    "26": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "AIPG_Image",
+        "images": [
+          "25",
+          0
+        ]
+      }
+    }
+  },
+  "_genesis_mapping": {
+    "seed": "9.inputs.noise_seed",
+    "prompt": "4.inputs.text",
+    "steps": "7.inputs.steps",
+    "width": "7.inputs.width",
+    "height": "7.inputs.height"
+  }
+}
