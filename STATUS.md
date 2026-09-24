@@ -4,10 +4,11 @@
 
 - Grok/Imagine-style single-screen frontend.
 - Automatic route registry and workflow selection.
-- Ready routes: Klein 9B, Aisha 9B, Qwen Edit/Phr00t v23, WAN Fast.
-- WAN Quality remains intentionally unconfigured because no genuine higher-quality local WAN graph was found.
-- Unconfigured modes are disabled in the UI.
-- Auto routing falls back from WAN Quality to WAN Fast when Quality is unavailable.
+- Configured routes: Klein 9B, Aisha 9B, Qwen Edit/Phr00t v23, WAN Fast, WAN Quality.
+- WAN Fast uses the local official 4-step LightX2V-style graph.
+- WAN Quality uses the non-LightX2V 20-step high/low-noise settings with a 10-step handoff.
+- Route configuration does not claim that every referenced model weight is installed on the currently selected ComfyUI backend.
+- Unconfigured modes, if any are added later, are disabled in the UI.
 - Prompt, negative prompt, seed, steps, edit strength, aspect ratio, reference image and LoRA controls.
 - Generate, Stop, preview, download and session history.
 - Local launcher: `START_LOCAL.sh`.

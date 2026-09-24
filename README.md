@@ -15,8 +15,8 @@ This opens the UI on `http://127.0.0.1:7865` and uses local ComfyUI at `http://1
 - `klein_9b` — FLUX.2 Klein 9B image generation
 - `aisha_9b` — Aisha 9B realism
 - `qwen_edit` — Qwen reference-image editing
-- `wan_fast` — local Wan 2.2 fast 4-step video workflow
-- `wan_quality` — reserved for a verified higher-quality WAN workflow; currently unconfigured
+- `wan_fast` — Wan 2.2 fast 4-step video workflow with LightX2V acceleration
+- `wan_quality` — Wan 2.2 quality 20-step high/low-noise workflow without LightX2V acceleration
 
 ## Start on RunPod
 

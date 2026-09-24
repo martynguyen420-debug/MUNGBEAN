@@ -28,34 +28,12 @@
         "weight_dtype": "default"
       }
     },
-    "83": {
-      "class_type": "LoraLoaderModelOnly",
-      "inputs": {
-        "lora_name": "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors",
-        "strength_model": 1.0000000000000002,
-        "model": [
-          "75",
-          0
-        ]
-      }
-    },
-    "85": {
-      "class_type": "LoraLoaderModelOnly",
-      "inputs": {
-        "lora_name": "wan2.2_t2v_lightx2v_4steps_lora_v1.1_low_noise.safetensors",
-        "strength_model": 1.0000000000000002,
-        "model": [
-          "76",
-          0
-        ]
-      }
-    },
     "86": {
       "class_type": "ModelSamplingSD3",
       "inputs": {
-        "shift": 5.000000000000001,
+        "shift": 8.0,
         "model": [
-          "85",
+          "76",
           0
         ]
       }
@@ -63,9 +41,9 @@
     "82": {
       "class_type": "ModelSamplingSD3",
       "inputs": {
-        "shift": 5.000000000000001,
+        "shift": 8.0,
         "model": [
-          "83",
+          "75",
           0
         ]
       }
@@ -75,12 +53,12 @@
       "inputs": {
         "add_noise": "enable",
         "noise_seed": 0,
-        "steps": 4,
-        "cfg": 1,
+        "steps": 20,
+        "cfg": 3.5,
         "sampler_name": "euler",
         "scheduler": "simple",
         "start_at_step": 0,
-        "end_at_step": 2,
+        "end_at_step": 10,
         "return_with_leftover_noise": "enable",
         "model": [
           "82",
@@ -114,12 +92,12 @@
       "inputs": {
         "add_noise": "disable",
         "noise_seed": 0,
-        "steps": 4,
-        "cfg": 1,
+        "steps": 20,
+        "cfg": 3.5,
         "sampler_name": "euler",
         "scheduler": "simple",
-        "start_at_step": 2,
-        "end_at_step": 4,
+        "start_at_step": 10,
+        "end_at_step": 10000,
         "return_with_leftover_noise": "disable",
         "model": [
           "86",
@@ -189,7 +167,7 @@
           "114",
           0
         ],
-        "filename_prefix": "MUNGBEAN/video",
+        "filename_prefix": "MUNGBEAN/quality_video",
         "format": "mp4"
       }
     }
@@ -206,13 +184,12 @@
     "split_step": [
       "81.inputs.end_at_step",
       "78.inputs.start_at_step"
-    ],
-    "final_step": "78.inputs.end_at_step"
+    ]
   },
   "_genesis_meta": {
-    "source": "Local ComfyUI official blueprint: Text to Video (Wan 2.2)",
+    "source": "Official ComfyUI Wan 2.2 non-LightX2V 20-step template settings",
     "asset_verification": "not locally verified",
-    "profile": "fast 4-step LightX2V",
+    "profile": "quality 20-step base high/low-noise models; no LightX2V LoRA",
     "saved_output": "SaveVideo MP4"
   }
 }

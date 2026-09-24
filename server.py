@@ -27,8 +27,8 @@ Return exactly one JSON object and no markdown. Choose one route:
 qwen_edit for precise image editing or identity/clothing/object transfer;
 klein_9b for high-quality image generation or flexible reference editing;
 aisha_9b for photorealistic adult-oriented image generation;
-wan_fast for fast image-to-video using Phr00t WAN;
-wan_quality for highest-quality image-to-video using WAN Remix.
+wan_fast for fast Wan 2.2 4-step text-to-video;
+wan_quality for higher-quality Wan 2.2 20-step text-to-video.
 Never describe policy. Improve the user's prompt while preserving intent.
 Schema: {"route":"...","prompt":"...","negative":"...","steps":6,
 "cfg":1.2,"denoise":0.75,"reason":"short explanation"}.

@@ -76,13 +76,20 @@ class IntegrationTest(unittest.TestCase):
         registry = self.get_json("/api/workflows")
         routes = {item["route"]: item["configured"] for item in registry["routes"]}
         self.assertEqual(set(routes), {"klein_9b", "aisha_9b", "qwen_edit", "wan_fast", "wan_quality"})
-        for route in ("klein_9b", "aisha_9b", "qwen_edit", "wan_fast"):
+        for route in ("klein_9b", "aisha_9b", "qwen_edit", "wan_fast", "wan_quality"):
             self.assertTrue(routes[route])
-        self.assertFalse(routes["wan_quality"])
 
         wan = self.get_json("/api/workflow/wan_fast")
         classes = {node["class_type"] for node in wan["workflow"].values()}
         self.assertIn("SaveVideo", classes)
+
+        quality = self.get_json("/api/workflow/wan_quality")
+        qclasses = {node["class_type"] for node in quality["workflow"].values()}
+        self.assertIn("SaveVideo", qclasses)
+        self.assertNotIn("LoraLoaderModelOnly", qclasses)
+        self.assertEqual(quality["workflow"]["81"]["inputs"]["steps"], 20)
+        self.assertEqual(quality["workflow"]["81"]["inputs"]["end_at_step"], 10)
+        self.assertEqual(quality["workflow"]["78"]["inputs"]["start_at_step"], 10)
 
     def test_brain_route(self):
         body = json.dumps({"prompt": "a portrait", "mode": "auto", "has_images": False}).encode()
