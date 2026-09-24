@@ -154,6 +154,16 @@ class Handler(SimpleHTTPRequestHandler):
             if text.startswith("```"):
                 text = text.split("\n", 1)[1].rsplit("```", 1)[0]
             plan = json.loads(text)
+            route = str(plan.get("route", ""))
+            if route not in ROUTES:
+                return self.send_json(400, {"ok": False, "error": f"Brain returned unknown route: {route}"})
+            if not (WORKFLOW_DIR / f"{route}.json").is_file():
+                if route == "wan_quality" and (WORKFLOW_DIR / "wan_fast.json").is_file():
+                    plan["route"] = "wan_fast"
+                    reason = str(plan.get("reason", "")).strip()
+                    plan["reason"] = (reason + " · Quality workflow unavailable locally; using WAN Fast.").strip(" ·")
+                else:
+                    return self.send_json(409, {"ok": False, "error": f"Route {route} is not configured locally."})
             return self.send_json(200, {"ok": True, "plan": plan})
         except (HTTPError, URLError) as exc:
             return self.send_json(503, {"ok": False, "error": f"Brain server unavailable: {exc}"})

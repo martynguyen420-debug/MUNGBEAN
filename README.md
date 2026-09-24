@@ -1,14 +1,22 @@
 # GENESIS Imagine
 
-A focused Grok Imagine-style front end for a RunPod ComfyUI installation. The app adds a local Qwen brain that improves prompts and routes requests among the models already installed on the Pod.
+A focused Grok Imagine-style front end for ComfyUI. The app adds an optional local Qwen brain that improves prompts and routes requests among configured image/video workflows.
+
+## Start locally
+
+```bash
+./START_LOCAL.sh
+```
+
+This opens the UI on `http://127.0.0.1:7865` and uses local ComfyUI at `http://127.0.0.1:8188` by default. The local launcher does not require or query RunPod.
 
 ## Routes
 
 - `klein_9b` — FLUX.2 Klein 9B image generation
 - `aisha_9b` — Aisha 9B realism
 - `qwen_edit` — Qwen reference-image editing
-- `wan_fast` — Phr00t WAN 2.2 rapid video
-- `wan_quality` — WAN 2.2 Remix quality video
+- `wan_fast` — local Wan 2.2 fast 4-step video workflow
+- `wan_quality` — reserved for a verified higher-quality WAN workflow; currently unconfigured
 
 ## Start on RunPod
 
