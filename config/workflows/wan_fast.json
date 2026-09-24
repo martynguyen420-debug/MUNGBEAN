@@ -181,6 +181,17 @@
           0
         ]
       }
+    },
+    "1200": {
+      "class_type": "SaveVideo",
+      "inputs": {
+        "video": [
+          "114",
+          0
+        ],
+        "filename_prefix": "MUNGBEAN/video",
+        "format": "mp4"
+      }
     }
   },
   "_genesis_mapping": {
@@ -193,6 +204,7 @@
   "_genesis_meta": {
     "source": "Local ComfyUI official blueprint: Text to Video (Wan 2.2)",
     "asset_verification": "not locally verified",
-    "profile": "fast 4-step LightX2V"
+    "profile": "fast 4-step LightX2V",
+    "saved_output": "SaveVideo MP4"
   }
 }

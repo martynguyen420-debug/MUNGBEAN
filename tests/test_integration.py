@@ -80,6 +80,10 @@ class IntegrationTest(unittest.TestCase):
             self.assertTrue(routes[route])
         self.assertFalse(routes["wan_quality"])
 
+        wan = self.get_json("/api/workflow/wan_fast")
+        classes = {node["class_type"] for node in wan["workflow"].values()}
+        self.assertIn("SaveVideo", classes)
+
     def test_brain_route(self):
         body = json.dumps({"prompt": "a portrait", "mode": "auto", "has_images": False}).encode()
         request = Request("http://127.0.0.1:17865/api/brain", data=body, headers={"Content-Type": "application/json"})
