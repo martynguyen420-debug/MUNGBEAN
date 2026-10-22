@@ -1,0 +1,14 @@
+{
+  "comfy_url": "http://127.0.0.1:8188",
+  "windows_standalone": true,
+  "preview_none": true,
+  "fast_disk": true,
+  "auto_fp8": true,
+  "fp8_unet": false,
+  "fp8_text": false,
+  "extra_args": "",
+  "last_mode": "Auto",
+  "last_family_override": "Auto",
+  "prompt_history": [],
+  "model_notes": {}
+}
