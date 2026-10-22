@@ -1,0 +1,6 @@
+{
+  "models_directory": "models",
+  "allowed_model_folders": ["diffusion_models", "text_encoders", "vae"],
+  "custom_nodes_directory": "custom_nodes",
+  "description": "All destinations are relative to the existing COMFY_ROOT. Reject unknown folders and paths escaping the model store."
+}

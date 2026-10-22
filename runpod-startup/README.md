@@ -181,3 +181,11 @@ The exact files/revisions, byte counts and all SHA256 values are in `models.lock
 Metadata and relevant tensor headers were checked on 22 October 2026. This verifies
 file identity and architectural pairing, not authorship of third-party mirror files
 or successful inference on a particular GPU.
+
+## Exact download folders
+
+See `MODEL_LOCATIONS.md` for every complete default destination. `paths.json`
+restricts destinations to native ComfyUI model folders. Installers reject unsafe or
+unrecognized paths and print absolute saved/reused locations. No extra YAML is
+needed for files installed in these standard folders. Per-group location/status
+reports are saved under `/workspace/.runpod-startup`.

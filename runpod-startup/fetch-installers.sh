@@ -24,7 +24,7 @@ prepare() {
 import ast,json,pathlib,sys
 p=pathlib.Path(sys.argv[1])
 for name in ['setup.py','manual-install.py']: ast.parse((p/name).read_text())
-for name in ['models.lock.json','nodes.lock.json','install-groups.json']: json.loads((p/name).read_text())
+for name in ['models.lock.json','nodes.lock.json','install-groups.json','paths.json']: json.loads((p/name).read_text())
 PY
     [[ $? == 0 ]] || return 1
     mkdir -p "$CACHE/releases" || return 1

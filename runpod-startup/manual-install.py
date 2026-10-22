@@ -36,6 +36,9 @@ def main():
         status = state / 'setup-status.json'
         if status.exists():
             (state / ('group-' + group + '-status.json')).write_bytes(status.read_bytes())
+        locations = state / 'model-locations.json'
+        if locations.exists():
+            (state / ('group-' + group + '-locations.json')).write_bytes(locations.read_bytes())
     print('Finished. This installer does not start or restart either ComfyUI port.', flush=True)
     return result
 

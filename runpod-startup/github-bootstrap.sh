@@ -20,7 +20,7 @@ prepare_release() {
     python3 - "$STAGE/runpod-startup" <<'PY'
 import ast,json,pathlib,sys
 p=pathlib.Path(sys.argv[1]); ast.parse((p/'setup.py').read_text())
-for name in ['models.lock.json','nodes.lock.json']: json.loads((p/name).read_text())
+for name in ['models.lock.json','nodes.lock.json','paths.json']: json.loads((p/name).read_text())
 PY
     [[ $? == 0 ]] || return 1
     mkdir -p "$CACHE/releases"

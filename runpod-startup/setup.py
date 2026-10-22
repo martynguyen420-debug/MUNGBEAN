@@ -53,6 +53,19 @@ def save_json(path, value):
     os.replace(tmp, path)
 
 
+def model_destination(root, asset, layout):
+    relative = Path(asset['destination'])
+    if relative.is_absolute() or len(relative.parts) != 2 or '..' in relative.parts:
+        raise ValueError('Unsafe manifest destination: ' + asset['destination'])
+    if relative.parts[0] not in layout['allowed_model_folders']:
+        raise ValueError('Unapproved model folder: ' + relative.parts[0])
+    models = root / layout['models_directory']
+    dest = models / relative
+    if not dest.parent.resolve().is_relative_to(models.resolve()):
+        raise ValueError('Model folder points outside the configured model store: ' + str(dest.parent))
+    return dest
+
+
 def metadata(asset):
     kind = asset.get('kind', 'models')
     url = ('https://huggingface.co/api/' + kind + '/' + asset['repo'] + '/revision/' +
@@ -127,6 +140,12 @@ def install_node(root, state, node):
 
 def main():
     root = Path(os.environ.get('COMFY_ROOT', '/workspace/runpod-slim/ComfyUI'))
+    if not root.is_absolute() or not (root / 'main.py').is_file():
+        raise ValueError('COMFY_ROOT must be the absolute path of the existing ComfyUI installation')
+    layout = json.loads((Path(__file__).parent / 'paths.json').read_text())
+    # These are ComfyUI's native scanned folders; no extra YAML or launch flag is needed.
+    if layout['models_directory'] != 'models' or layout['custom_nodes_directory'] != 'custom_nodes':
+        raise ValueError('Use ComfyUI native models/custom_nodes locations')
     state = Path(os.environ.get('RUNPOD_STATE', '/workspace/.runpod-startup'))
     state.mkdir(parents=True, exist_ok=True)
     manifest = json.loads(Path(sys.argv[1]).read_text())
@@ -153,11 +172,10 @@ def main():
     pending = []
     for a in manifest['assets']:
         try:
-            relative = Path(a['destination'])
-            if relative.is_absolute() or '..' in relative.parts:
-                raise ValueError('Unsafe manifest destination')
-            dest = root / 'models' / relative
+            dest = model_destination(root, a, layout)
+            print('DESTINATION:', str(dest), flush=True)
             if verified(dest, a, receipts):
+                print('REUSE VERIFIED:', str(dest), flush=True)
                 results.append({'item': a['destination'], 'status': 'reused'})
                 continue
             if dest.exists():
@@ -169,6 +187,7 @@ def main():
             if found:
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.symlink_to(found.resolve())
+                print('REUSE LINK:', str(dest), '->', str(found.resolve()), flush=True)
                 verified(dest, a, receipts)
                 results.append({'item': a['destination'], 'status': 'linked-existing'})
                 continue
@@ -179,7 +198,7 @@ def main():
             print('MODEL:', a['destination'], str(e), flush=True)
     for a, dest, url in pending:
         try:
-            print('DOWNLOAD:', a['destination'], a['size'], flush=True)
+            print('DOWNLOAD TO:', str(dest), a['size'], 'bytes', flush=True)
             download(a, dest, url)
             receipts[str(dest.resolve())] = [a['sha256'], fingerprint(dest)]
             results.append({'item': a['destination'], 'status': 'downloaded-verified'})
@@ -190,6 +209,18 @@ def main():
             save_json(receipts_path, receipts)
     for item in manifest.get('disabled', []):
         results.append({'item': item['name'], 'status': 'disabled', 'reason': item['reason']})
+    destinations = {a['destination']: a for a in manifest['assets']}
+    for result in results:
+        if result['item'] in destinations:
+            registered = root / 'models' / result['item']
+            result['full_path'] = str(registered)
+            if registered.is_file():
+                result['stored_at'] = str(registered.resolve())
+        elif any(n['name'] == result['item'] for n in nodes):
+            result['full_path'] = str(root / 'custom_nodes' / result['item'])
+    inventory = [{'file': a['destination'], 'full_path': str(root / 'models' / a['destination']),
+                  'sha256': a['sha256'], 'size': a['size']} for a in manifest['assets']]
+    save_json(state / 'model-locations.json', inventory)
     save_json(receipts_path, receipts)
     save_json(state / 'setup-status.json', results)
     print(json.dumps(results, indent=2), flush=True)
