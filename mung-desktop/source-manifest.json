@@ -1,12 +1,12 @@
 {
   "source_snapshot": "MUNG_DESKTOP_LATEST from F drive recovery bundle",
-  "main_source_modified": "2026-10-13",
+  "main_source_modified": "2026-10-22",
   "published": "2026-10-22",
   "files": [
     {
       "file": "BEAVIS_FIXED.py",
-      "sha256": "5a5a03b49ca013d11aa651b7a20c4455ad20e3bd1b514b23b3482f884413a618",
-      "size": 111109
+      "sha256": "b1596a7cb9fc1443f5c215c2d5be84fa412b569491a50d8cde2a206f8bcd012e",
+      "size": 111714
     },
     {
       "file": "START_.bat",
@@ -63,5 +63,10 @@
       "sha256": "a25615a0ab7123b905a2e471d80c6c2cafb0c80a30716e3ead1682731fd89e51",
       "size": 27124
     }
+  ],
+  "changes": [
+    "Require explicit current RunPod URL each remote session",
+    "Validate before replacing active or saved connection",
+    "Open RunPod panel when reconnect is needed"
   ]
 }

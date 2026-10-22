@@ -177,11 +177,17 @@ def save_settings_dict(data: Dict[str, Any]) -> None:
         _comfy_log.append(f"Could not save settings: {e}")
 
 
+def startup_connection(settings: Dict[str, Any]) -> Tuple[str, str]:
+    # Pod addresses can belong to a stopped/replaced pod. Never restore a saved
+    # remote address as an active connection; require this session's explicit URL.
+    if str(settings.get("model_source", "local")) == "remote":
+        return "", "remote"
+    return "http://127.0.0.1:8188", "local"
+
+
 SETTINGS = load_settings()
-COMFY_URL = str(SETTINGS.get("comfy_url") or COMFY_URL).rstrip("/")
-MODEL_SOURCE = str(SETTINGS.get("model_source", "local"))
-if MODEL_SOURCE == "local":
-    COMFY_URL = "http://127.0.0.1:8188"
+COMFY_URL, MODEL_SOURCE = startup_connection(SETTINGS)
+_runpod_needs_connection = MODEL_SOURCE == "remote" and not COMFY_URL
 _prompt_history = deque(SETTINGS.get("prompt_history", []), maxlen=5)
 
 
@@ -617,6 +623,8 @@ def inject_lora_manager(prompt: Dict[str, Any], table: Any, family: str) -> List
 # ============================================================================
 
 def comfy_alive(timeout: float = 2.0) -> bool:
+    if not COMFY_URL:
+        return False
     try:
         r = requests.get(f"{COMFY_URL}/system_stats", timeout=timeout)
         return r.ok
@@ -626,6 +634,8 @@ def comfy_alive(timeout: float = 2.0) -> bool:
 
 def get_object_info(force: bool = False) -> Dict[str, Any]:
     global _object_info_cache
+    if not COMFY_URL:
+        return {}
     if _object_info_cache is not None and not force:
         return _object_info_cache
     try:
@@ -1620,6 +1630,8 @@ def restart_comfy(*args) -> str:
 
 
 def queue_status_text() -> str:
+    if not COMFY_URL:
+        return "Paste the current RunPod URL and connect."
     try:
         response = requests.get(f"{COMFY_URL}/queue", timeout=3)
         response.raise_for_status()
@@ -1631,6 +1643,8 @@ def queue_status_text() -> str:
         return "Queue: unavailable"
 
 def status_text() -> str:
+    if not COMFY_URL:
+        return "RunPod not connected - paste the current pod URL and click Connect & Scan Pod Models."
     if comfy_alive(1):
         owned = _owned_comfy_process is not None and _owned_comfy_process.poll() is None
         return f"🟢 ComfyUI ONLINE — {COMFY_URL}" + (f" — GUI-owned PID {_owned_comfy_process.pid}" if owned else " — external process")
@@ -1645,22 +1659,21 @@ def connect_runpod_and_scan(endpoint: str, family_override: str, model_value: Op
         endpoint = "https://" + endpoint
     if not endpoint:
         raise gr.Error("Enter the RunPod ComfyUI proxy address for port 8188.")
-    COMFY_URL = endpoint
-    MODEL_SOURCE = "remote"
-    SETTINGS["comfy_url"] = COMFY_URL
-    SETTINGS["model_source"] = MODEL_SOURCE
-    save_settings_dict(SETTINGS)
-    _object_info_cache = None
     try:
-        test = requests.get(f"{COMFY_URL}/object_info", timeout=15)
+        test = requests.get(f"{endpoint}/object_info", timeout=15)
         test.raise_for_status()
         payload = test.json()
         if not isinstance(payload, dict) or not payload:
             raise RuntimeError("ComfyUI returned empty object_info")
     except Exception as e:
-        raise gr.Error(f"RunPod connection failed: {COMFY_URL} — {e}")
-    # Force a new API schema read before collecting each loader's dropdown list.
-    get_object_info(force=True)
+        raise gr.Error(f"RunPod connection failed: {endpoint} — {e}")
+    # Only replace the active connection and remembered URL after validation.
+    COMFY_URL = endpoint
+    MODEL_SOURCE = "remote"
+    _object_info_cache = payload
+    SETTINGS["comfy_url"] = COMFY_URL
+    SETTINGS["model_source"] = MODEL_SOURCE
+    save_settings_dict(SETTINGS)
     updates = refresh_models_ui(family_override, model_value, show_all_loras)
     return (*updates, status_text())
 
@@ -1848,8 +1861,8 @@ with gr.Blocks(title="BEAVIS — Local + RunPod") as demo:
             refresh_status_btn = gr.Button("Refresh Status", scale=1)
             cancel_btn = gr.Button("Stop / Interrupt", variant="stop", scale=1)
 
-    with gr.Group(visible=False) as runpod_panel:
-        gr.Markdown("Paste your RunPod **ComfyUI proxy URL** ending in `-8188.proxy.runpod.net` (or another exposed ComfyUI URL), then connect. The GUI scans the models exposed by that Pod — no local model paths are used.")
+    with gr.Group(visible=_runpod_needs_connection) as runpod_panel:
+        gr.Markdown("Paste your current RunPod **ComfyUI proxy URL** ending in `-8188.proxy.runpod.net` (or another exposed ComfyUI URL), then connect. Saved pod addresses are not automatically reconnected when MUNG opens.")
         with gr.Row():
             remote_url = gr.Textbox(
             value="" if ("127.0.0.1" in COMFY_URL or "localhost" in COMFY_URL) else COMFY_URL,
@@ -2053,7 +2066,7 @@ with gr.Blocks(title="BEAVIS — Local + RunPod") as demo:
 
     # ---------------- Events ----------------
     status_open = gr.State(False)
-    runpod_open = gr.State(False)
+    runpod_open = gr.State(_runpod_needs_connection)
     def toggle_panel(opened):
         opened = not opened
         return opened, gr.update(visible=opened)

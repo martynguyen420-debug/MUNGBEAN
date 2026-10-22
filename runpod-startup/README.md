@@ -50,15 +50,15 @@ Set these in the RunPod template/pod environment, not in GitHub:
 
 ## Model set
 
-The lock manifest contains 11 files, 112,303,075,082 bytes (104.59 GiB), plus ComfyUI
-and outputs. Allow at least 130 GB FREE for these assets and leave extra output space.
+The lock manifest contains 12 files, 134,053,727,466 bytes (124.85 GiB), plus ComfyUI
+and outputs. Allow at least 150 GB FREE for these assets and leave extra output space.
 Use a persistent volume large enough for the installation and generations. A new GPU
 can reuse models only when it mounts the same persistent files at the expected paths.
 Volume and GPU data-center compatibility still applies.
 
 | Model | Encoder | VAE / loader |
 | --- | --- | --- |
-| Phr00t Rapid v23 Q8_0 GGUF (Novice25 quantization) | Qwen2.5-VL 7B Q8_0 GGUF + matching BF16 mmproj | Qwen Image VAE; UnetLoaderGGUF + CLIPLoaderGGUF type qwen_image |
+| Phr00t Rapid v19 + v23 Q8_0 GGUF (Novice25 quantization) | Qwen2.5-VL 7B Q8_0 GGUF + matching BF16 mmproj | Qwen Image VAE; UnetLoaderGGUF + CLIPLoaderGGUF type qwen_image |
 | Official FLUX.2 Klein 9B distilled BF16 | Qwen3 8B BF16 | Flux2 VAE; UNETLoader + CLIPLoader type flux2 |
 | Miraclein NSFW v3.0 FP8 9B | shared Qwen3 8B | shared Flux2 VAE; UNETLoader, not checkpoint loader |
 | Aisha NSFW beta v9.7 distilled BF16 | shared Qwen3 8B | shared Flux2 VAE; UNETLoader |
