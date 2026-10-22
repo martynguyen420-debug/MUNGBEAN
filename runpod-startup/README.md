@@ -8,7 +8,13 @@ Linux must provide bash, git, curl, flock, tar and python3. Expose 8188 as HTTP.
 
 ## Manual Jupyter recovery: installers 1 to 6
 
-Keep the image's normal Jupyter startup when using manual installation. These
+For the existing image with `/start.sh`, use `manual-template-start.json` (or the
+single line in `manual-template-command.txt`) as the template startup configuration.
+It fetches only the scripts, creates `/workspace/1` through `/workspace/6`, then runs
+`/start.sh` normally even if fetching fails. No models or packages install at boot.
+Fetches have a 180-second limit and keep a cached copy for later launches.
+
+In Jupyter terminal, run `cd /workspace`, then `bash 6` or a model number. These
 numbered scripts install only the selected group and never start, stop or restart
 either ComfyUI port. Download the scripts once in Jupyter's terminal:
 
