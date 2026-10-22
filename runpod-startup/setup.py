@@ -66,6 +66,21 @@ def model_destination(root, asset, layout):
     return dest
 
 
+def required_core_features(assets):
+    required = set()
+    for asset in assets:
+        name = asset['destination'].lower()
+        if not name.startswith('diffusion_models/'):
+            continue
+        if 'qwen-rapid' in name:
+            required.add('qwen_image')
+        elif 'kreanoct' in name:
+            required.add('krea2')
+        elif any(term in name for term in ('klein', 'miraclein', 'aisha')):
+            required.add('klein')
+    return required
+
+
 def metadata(asset):
     kind = asset.get('kind', 'models')
     url = ('https://huggingface.co/api/' + kind + '/' + asset['repo'] + '/revision/' +
@@ -157,8 +172,9 @@ def main():
     # is still required on the target pod; these checks only catch obvious old cores.
     core_sources = [root / 'comfy' / 'supported_models.py', root / 'comfy' / 'sd.py']
     source = '\n'.join(p.read_text(errors='replace') for p in core_sources if p.exists()).lower()
-    if manifest['assets'] and any(token not in source for token in ('klein', 'qwen_image', 'krea2')):
-        results.append({'item': 'ComfyUI core', 'status': 'failed', 'reason': 'Core source lacks Klein/Qwen/Krea2 support. Existing core preserved; update separately in a tested environment.'})
+    missing = sorted(required_core_features(manifest['assets']) - {token for token in ('klein', 'qwen_image', 'krea2') if token in source})
+    if missing:
+        results.append({'item': 'ComfyUI core', 'status': 'failed', 'reason': 'Core source lacks required support: ' + ', '.join(missing) + '. Existing core preserved; update separately in a tested environment.'})
         save_json(state / 'setup-status.json', results)
         print(results, flush=True)
         return 1
