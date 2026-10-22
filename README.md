@@ -1,3 +1,5 @@
+> Current procedure: [CURRENT_SETUP.md](CURRENT_SETUP.md). Project SOP: [SOP.md](SOP.md). Latest attempt and last verified working release are tracked separately.
+
 # GENESIS Imagine
 
 A focused Grok Imagine-style front end for a RunPod ComfyUI installation. The app adds a local Qwen brain that improves prompts and routes requests among the models already installed on the Pod.
