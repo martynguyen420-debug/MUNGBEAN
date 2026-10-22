@@ -138,7 +138,7 @@ def main():
     # is still required on the target pod; these checks only catch obvious old cores.
     core_sources = [root / 'comfy' / 'supported_models.py', root / 'comfy' / 'sd.py']
     source = '\n'.join(p.read_text(errors='replace') for p in core_sources if p.exists()).lower()
-    if any(token not in source for token in ('klein', 'qwen_image', 'krea2')):
+    if manifest['assets'] and any(token not in source for token in ('klein', 'qwen_image', 'krea2')):
         results.append({'item': 'ComfyUI core', 'status': 'failed', 'reason': 'Core source lacks Klein/Qwen/Krea2 support. Existing core preserved; update separately in a tested environment.'})
         save_json(state / 'setup-status.json', results)
         print(results, flush=True)

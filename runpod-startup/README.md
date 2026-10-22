@@ -6,6 +6,39 @@ It does not install ComfyUI, Python, CUDA or torch on an empty pod. Choose an im
 that already provides this installation, or set `COMFY_ROOT` and `COMFY_PYTHON`.
 Linux must provide bash, git, curl, flock, tar and python3. Expose 8188 as HTTP.
 
+## Manual Jupyter recovery: installers 1 to 6
+
+Keep the image's normal Jupyter startup when using manual installation. These
+numbered scripts install only the selected group and never start, stop or restart
+either ComfyUI port. Download the scripts once in Jupyter's terminal:
+
+```bash
+git clone https://github.com/martynguyen420-debug/MUNGBEAN.git /workspace/MUNGBEAN
+cd /workspace/MUNGBEAN/runpod-startup
+```
+
+If this checkout already exists, update it using
+`git -C /workspace/MUNGBEAN pull --ff-only`, then enter the same folder.
+
+| Type | Installs |
+| --- | --- |
+| `bash 1` | Phr00t v19 + v23 Q8 GGUF, Qwen encoder, mmproj and VAE |
+| `bash 2` | Klein 9B, Qwen3 8B encoder and Flux2 VAE |
+| `bash 3` | Miraclein v3 FP8 and shared encoder/VAE |
+| `bash 4` | Aisha v9.7 BF16 and shared encoder/VAE |
+| `bash 5` | KreaNoct V4 INT8 ConvRot, encoder and VAE |
+| `bash 6` | Custom nodes: the pinned ComfyUI-GGUF loader and missing dependencies |
+
+Run `bash 6` first for GGUF workflows. Choose only the model groups you want.
+Each group reuses the same verified model files, receipts, resumed partials and
+startup lock. Standalone groups 3 and 4 also include their shared support files,
+so installing Klein first is optional. Per-group results are saved to
+`/workspace/.runpod-startup/group-N-status.json`. Start 8188 through your existing
+ComfyUI launcher after installation. Restart only that service if it was running
+when nodes were installed. The automatic GitHub startup path below still installs
+the complete model set on launch; use the normal image/Jupyter entrypoint for
+manual-only operation.
+
 ## GitHub startup
 
 Repository: https://github.com/martynguyen420-debug/MUNGBEAN/tree/main/runpod-startup

@@ -1,0 +1,48 @@
+{
+  "1": {
+    "name": "Phr00t v19 + v23 Q8 GGUF",
+    "destinations": [
+      "diffusion_models/Qwen-Rapid-AIO-NSFW-v19_Q8_0.gguf",
+      "diffusion_models/Qwen-Rapid-NSFW-v23_Q8_0.gguf",
+      "text_encoders/Qwen2.5-VL-7B-Instruct-Q8_0.gguf",
+      "text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-BF16.gguf",
+      "vae/qwen_image_vae.safetensors"
+    ]
+  },
+  "2": {
+    "name": "FLUX.2 Klein 9B",
+    "destinations": [
+      "diffusion_models/flux-2-klein-9b.safetensors",
+      "text_encoders/qwen_3_8b.safetensors",
+      "vae/flux2-vae.safetensors"
+    ]
+  },
+  "3": {
+    "name": "Miraclein v3 FP8",
+    "destinations": [
+      "diffusion_models/Miraclein NSFW v3.0 FP8 - Klein9B - 12steps,euler,cfg1.1.safetensors",
+      "text_encoders/qwen_3_8b.safetensors",
+      "vae/flux2-vae.safetensors"
+    ]
+  },
+  "4": {
+    "name": "Aisha v9.7 BF16",
+    "destinations": [
+      "diffusion_models/aisha_nsfw_beta_v9_7_distilled_bf16.safetensors",
+      "text_encoders/qwen_3_8b.safetensors",
+      "vae/flux2-vae.safetensors"
+    ]
+  },
+  "5": {
+    "name": "KreaNoct V4 INT8 ConvRot",
+    "destinations": [
+      "diffusion_models/KreaNoct_V4_int8_convrot.safetensors",
+      "text_encoders/qwen3vl_4b_fp8_scaled.safetensors",
+      "vae/qwen_image_vae.safetensors"
+    ]
+  },
+  "6": {
+    "name": "Custom nodes: ComfyUI-GGUF",
+    "destinations": []
+  }
+}
