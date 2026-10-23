@@ -6,11 +6,11 @@ It does not install ComfyUI, Python, CUDA or torch on an empty pod. Choose an im
 that already provides this installation, or set `COMFY_ROOT` and `COMFY_PYTHON`.
 Linux must provide bash, git, curl, flock, tar and python3. Expose 8188 as HTTP.
 
-## Manual Jupyter recovery: installers 1 to 8
+## Manual Jupyter recovery: installers 1 to 10
 
 For the existing image with `/start.sh`, use `manual-template-start.json` (or the
 single line in `manual-template-command.txt`) as the template startup configuration.
-It fetches only the scripts, creates `/workspace/1` through `/workspace/6`, then runs
+It fetches only the scripts, creates `/workspace/1` through `/workspace/10`, then runs
 `/start.sh` normally even if fetching fails. No locked model groups install at boot. If CIVITAI_TOKEN is configured, an isolated Krea Noct V4 BF16 download starts automatically without blocking /start.sh.
 Fetches have a 180-second limit and keep a cached copy for later launches.
 
@@ -35,6 +35,39 @@ If this checkout already exists, update it using
 | `bash 5` | KreaNoct V4 INT8 ConvRot, encoder and VAE |
 | `bash 6` | Custom nodes: the pinned ComfyUI-GGUF loader and missing dependencies |
 | `bash 8` | **Krea Noct V4 BF16** from Civitai (separate from INT8 group 5; does not touch Phr00t) |
+| `bash 9` | ERNIE-Image Abliterated gated encoders + standard ERNIE ComfyUI models |
+| `bash 10` | CyberRealistic FLUX.1 v2.5 FP8 + CLIP-L, T5-XXL FP8 and FLUX.1 VAE |
+
+### Numbers 9 and 10: ERNIE + CyberRealistic FLUX.1
+
+Refresh the existing /workspace numbered Bash commands (no pod restart):
+
+```bash
+cd /workspace
+bash /workspace/MUNGBEAN/runpod-startup/fetch-installers.sh
+bash 9   # ERNIE Abliterated with supporting ComfyUI ERNIE model
+bash 10  # CyberRealistic FLUX.1 v2.5 FP8 with matching support files
+```
+
+Group 9 requires accepting gated access at
+<https://huggingface.co/ponpoke/ERNIE-Image-Abliterated> and authenticating
+via a private `HF_TOKEN` environment variable or `hf auth login`.
+The access check runs before the large files download. Publisher's
+abliterated PE/TE Diffusers components are stored under
+`/workspace/ernie-image-abliterated/`; the original ComfyUI ERNIE
+model/encoders/VAE are stored in the regular `models/` folders.
+**Stock ComfyUI does not automatically load the abliterated Diffusers
+components; a compatible conversion/loader is still needed.** Group 9
+installs the full original ERNIE model, not Turbo.
+
+Group 10 installs the FP8 **diffusion model** into
+`models/diffusion_models/`, its two Flux text encoders into
+`models/text_encoders/`, and the FLUX.1 `ae.safetensors` into
+`models/vae/`. Both groups use resumable Hugging Face Hub downloads
+and the existing process lock; neither touches 8188 or 8189.
+Unlike the original SHA-locked groups 1–5, these two new groups are not
+yet covered by the `models.lock.json` checks. Do not insert a token
+into public GitHub files.
 
 ### Number 8: Krea Noct V4 full BF16 from Civitai
 
