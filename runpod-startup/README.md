@@ -6,7 +6,7 @@ It does not install ComfyUI, Python, CUDA or torch on an empty pod. Choose an im
 that already provides this installation, or set `COMFY_ROOT` and `COMFY_PYTHON`.
 Linux must provide bash, git, curl, flock, tar and python3. Expose 8188 as HTTP.
 
-## Manual Jupyter recovery: installers 1 to 6
+## Manual Jupyter recovery: installers 1 to 7
 
 For the existing image with `/start.sh`, use `manual-template-start.json` (or the
 single line in `manual-template-command.txt`) as the template startup configuration.
@@ -189,3 +189,12 @@ restricts destinations to native ComfyUI model folders. Installers reject unsafe
 unrecognized paths and print absolute saved/reused locations. No extra YAML is
 needed for files installed in these standard folders. Per-group location/status
 reports are saved under `/workspace/.runpod-startup`.
+
+## Two-port launcher
+
+Run ash 7 after your chosen installations. It uses separate directories at
+/workspace/comfy8188 and /workspace/comfy8189 for new services; existing running
+services and their directories are preserved. Set COMFY_INSTANCE_8188 and
+COMFY_INSTANCE_8189 to reuse explicit existing instance directories. Both must
+be exposed as HTTP ports in RunPod. Both services share models and GPU capacity.
+Four mocked launcher tests passed; real two-port GPU operation is not yet verified.

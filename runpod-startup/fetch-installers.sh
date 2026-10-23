@@ -17,13 +17,13 @@ prepare() {
   if [[ ! -d "$release" ]]; then
     stage="$(mktemp -d "$CACHE/staging.XXXXXX")"
     git --git-dir="$CACHE/repo.git" archive "$sha" runpod-startup | tar -x -C "$stage" || return 1
-    for file in 1 2 3 4 5 6 install-group.sh; do
+    for file in 1 2 3 4 5 6 7 install-group.sh; do
       bash -n "$stage/runpod-startup/$file" || return 1
     done
     python3 - "$stage/runpod-startup" <<'PY'
 import ast,json,pathlib,sys
 p=pathlib.Path(sys.argv[1])
-for name in ['setup.py','manual-install.py']: ast.parse((p/name).read_text())
+for name in ['setup.py','manual-install.py','start-two-ports.py']: ast.parse((p/name).read_text())
 for name in ['models.lock.json','nodes.lock.json','install-groups.json','paths.json']: json.loads((p/name).read_text())
 PY
     [[ $? == 0 ]] || return 1
@@ -35,7 +35,7 @@ PY
 }
 prepare || echo 'GitHub fetch failed; keeping cached installers if available.'
 [[ -s "$CACHE/current/runpod-startup/manual-install.py" ]] || { echo 'Installers not yet available. Jupyter can still start; retry fetch later.'; exit 1; }
-for number in 1 2 3 4 5 6; do
+for number in 1 2 3 4 5 6 7; do
   target="/workspace/$number"
   if [[ -e "$target" ]] && ! grep -q '^# MUNG managed installer wrapper$' "$target"; then
     echo "Keeping existing unrecognized file $target; use the cached installer folder instead."
@@ -45,4 +45,4 @@ for number in 1 2 3 4 5 6; do
     "exec bash \"$CACHE/current/runpod-startup/install-group.sh\" $number" > "$target.new"
   mv "$target.new" "$target"
 done
-echo 'Installers ready in /workspace: bash 6 for nodes; bash 1 through bash 5 for models.'
+echo 'Ready in /workspace: bash 6 nodes; bash 1 through bash 5 models; bash 7 starts both ComfyUI ports.'

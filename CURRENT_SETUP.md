@@ -7,7 +7,7 @@ Status: latest prepared attempt. Target RunPod startup and GPU generation are no
 - Startup fetches scripts only, then runs the existing image `/start.sh` for Jupyter.
 - Paste [the complete single-field start command](runpod-startup/manual-template-command-single-field.txt).
 - Separate fields: [manual-template-start.json](runpod-startup/manual-template-start.json).
-- In Jupyter Terminal: `cd /workspace`, then `bash 6` for nodes and selected `bash 1` through `bash 5` model groups.
+- In Jupyter Terminal: `cd /workspace`, then `bash 6` for nodes and selected `bash 1` through `bash 5` model groups. Run ash 7 to start missing 8188/8189 services; existing services are preserved.
 - [Current PDF](runpod-startup/RUNPOD_MODEL_INSTALL_COMMANDS_2026-10-22.pdf).
 - [Exact model folders](runpod-startup/MODEL_LOCATIONS.md), [path safeguards](runpod-startup/paths.json), [model sources and hashes](runpod-startup/models.lock.json).
 - [MUNG desktop](mung-desktop) asks for the current pod URL each remote session and validates before saving/switching.
