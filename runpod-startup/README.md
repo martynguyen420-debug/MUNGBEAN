@@ -198,3 +198,11 @@ services and their directories are preserved. Set COMFY_INSTANCE_8188 and
 COMFY_INSTANCE_8189 to reuse explicit existing instance directories. Both must
 be exposed as HTTP ports in RunPod. Both services share models and GPU capacity.
 Four mocked launcher tests passed; real two-port GPU operation is not yet verified.
+
+## Klein download mirror - 23 October 2026
+
+Group 2 now downloads the identical Klein 9B BF16 file from ModelsLab/FLUX.2-klein-9B
+at pinned revision 04fb1c9d319931d1891a3fa3342c0da4970599e9. Its 18,157,185,168 bytes
+and SHA256 match the original BFL file. An anonymous range request succeeded.
+The original source is retained in the lock manifest. License terms still apply.
+Refresh installers with fetch-installers.sh, then rerun bash 2; shared files are reused.

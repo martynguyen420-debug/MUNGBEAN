@@ -42,12 +42,17 @@
       "sha256": "a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f"
     },
     {
-      "repo": "black-forest-labs/FLUX.2-klein-9B",
-      "revision": "92196c8e11f7b6cf2b7493e037d8c5345c559216",
+      "repo": "ModelsLab/FLUX.2-klein-9B",
+      "revision": "04fb1c9d319931d1891a3fa3342c0da4970599e9",
       "path": "flux-2-klein-9b.safetensors",
       "destination": "diffusion_models/flux-2-klein-9b.safetensors",
       "size": 18157185168,
-      "sha256": "0975d6b77b5f510b99547d6724a208e36527df654e8f6134f59ece3f9f30da58"
+      "sha256": "0975d6b77b5f510b99547d6724a208e36527df654e8f6134f59ece3f9f30da58",
+      "original_source": {
+        "repo": "black-forest-labs/FLUX.2-klein-9B",
+        "revision": "92196c8e11f7b6cf2b7493e037d8c5345c559216",
+        "path": "flux-2-klein-9b.safetensors"
+      }
     },
     {
       "repo": "Comfy-Org/flux2-klein-9B",

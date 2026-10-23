@@ -27,3 +27,9 @@ Shell/Python syntax; five HTTP download fixtures; six MUNG connection regression
 Last verified working release of this complete setup: not yet established. Record the exact tested commit and evidence after a successful pod test.
 
 Earlier automatic model-install startup scripts remain alternatives. They are not the current manual-first plan. Start from this page.
+
+## Klein mirror update - 23 October 2026
+
+The official download failed on the pod. Group 2 now uses the ModelsLab mirror,
+verified by exact SHA256 and size against the BFL original. Anonymous range download
+returned HTTP 206. Full download and GPU generation are still unverified.
