@@ -16,6 +16,7 @@ Scripts are `/workspace/1` through `/workspace/6`. Their fetched bundle is cache
 | flux2-vae.safetensors | `/workspace/runpod-slim/ComfyUI/models/vae/flux2-vae.safetensors` |
 | aisha_nsfw_beta_v9_7_distilled_bf16.safetensors | `/workspace/runpod-slim/ComfyUI/models/diffusion_models/aisha_nsfw_beta_v9_7_distilled_bf16.safetensors` |
 | Miraclein NSFW v3.0 FP8 - Klein9B - 12steps,euler,cfg1.1.safetensors | `/workspace/runpod-slim/ComfyUI/models/diffusion_models/Miraclein NSFW v3.0 FP8 - Klein9B - 12steps,euler,cfg1.1.safetensors` |
+| KreaNoct_V4_BF16_Civitai3368908.safetensors (manual group 8) | `/workspace/runpod-slim/ComfyUI/models/diffusion_models/KreaNoct_V4_BF16_Civitai3368908.safetensors` |
 | KreaNoct_V4_int8_convrot.safetensors | `/workspace/runpod-slim/ComfyUI/models/diffusion_models/KreaNoct_V4_int8_convrot.safetensors` |
 | qwen3vl_4b_fp8_scaled.safetensors | `/workspace/runpod-slim/ComfyUI/models/text_encoders/qwen3vl_4b_fp8_scaled.safetensors` |
 

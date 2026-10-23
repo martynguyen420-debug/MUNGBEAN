@@ -6,12 +6,12 @@ It does not install ComfyUI, Python, CUDA or torch on an empty pod. Choose an im
 that already provides this installation, or set `COMFY_ROOT` and `COMFY_PYTHON`.
 Linux must provide bash, git, curl, flock, tar and python3. Expose 8188 as HTTP.
 
-## Manual Jupyter recovery: installers 1 to 7
+## Manual Jupyter recovery: installers 1 to 8
 
 For the existing image with `/start.sh`, use `manual-template-start.json` (or the
 single line in `manual-template-command.txt`) as the template startup configuration.
 It fetches only the scripts, creates `/workspace/1` through `/workspace/6`, then runs
-`/start.sh` normally even if fetching fails. No models or packages install at boot.
+`/start.sh` normally even if fetching fails. No locked model groups install at boot. If CIVITAI_TOKEN is configured, an isolated Krea Noct V4 BF16 download starts automatically without blocking /start.sh.
 Fetches have a 180-second limit and keep a cached copy for later launches.
 
 In Jupyter terminal, run `cd /workspace`, then `bash 6` or a model number. These
@@ -34,6 +34,45 @@ If this checkout already exists, update it using
 | `bash 4` | Aisha v9.7 BF16 and shared encoder/VAE |
 | `bash 5` | KreaNoct V4 INT8 ConvRot, encoder and VAE |
 | `bash 6` | Custom nodes: the pinned ComfyUI-GGUF loader and missing dependencies |
+| `bash 8` | **Krea Noct V4 BF16** from Civitai (separate from INT8 group 5; does not touch Phr00t) |
+
+### Number 8: Krea Noct V4 full BF16 from Civitai
+
+Use the refreshed scripts from a **Jupyter Terminal** (not a notebook Python cell):
+
+```bash
+cd /workspace
+bash /workspace/MUNGBEAN/runpod-startup/fetch-installers.sh
+bash 8
+```
+
+**Automatic startup (no Jupyter commands):** when the RunPod environment contains
+`CIVITAI_TOKEN`, the startup code automatically starts the number 8
+BF16 download on the next pod boot, in a separate process so ComfyUI can
+start normally. This applies to both the GitHub bootstrap startup and the
+existing manual-template startup that fetches `fetch-installers.sh`.
+The downloader keeps completed files, verifies their SHA256, and never
+touches Phr00t, GGUF nodes or either ComfyUI service. Follow progress in
+`/workspace/.runpod-startup/krea-bf16-auto.log`.
+Set `AUTO_KREA_BF16=0` in the RunPod environment to opt out.
+The one-time `CIVITAI_TOKEN` environment variable must be set privately in
+RunPod's pod/template environment settings: do **not** put the token in the
+public GitHub repository. If a token was pasted into chat, revoke it and
+create a replacement before storing it in RunPod.
+
+For manual downloading, number 8 prompts for your `CIVITAI_TOKEN` without showing the characters.
+It does **not** store the token on disk or in GitHub. Alternatively, provide
+`CIVITAI_TOKEN` as a RunPod environment secret. Rotate any token previously
+pasted into chats or other insecure locations.
+
+The pinned target is Civitai model 2952260, version 3368908, file 3257024,
+saved as `models/diffusion_models/KreaNoct_V4_BF16_Civitai3368908.safetensors`.
+It checks Civitai's metadata, exact file ID, expected BF16-sized payload and
+publisher SHA256 before activating the download. If the Civitai API blocks
+access or reports different file metadata, it fails without touching existing
+models. The download is one-time and manual; startup automation continues to
+use the original locked INT8 version. The Phr00t GGUF loader and files are
+never changed. The existing Krea Noct V4 INT8 remains available as group 5.
 
 Run `bash 6` first for GGUF workflows. Choose only the model groups you want.
 Each group reuses the same verified model files, receipts, resumed partials and
@@ -76,6 +115,8 @@ are needed and arrange for it to invoke this bootstrap as its 8188 service.
 
 Set these in the RunPod template/pod environment, not in GitHub:
 
+- `CIVITAI_TOKEN`: private Civitai API token used only for the optional automated Krea Noct V4 BF16 download. Never commit to GitHub.
+- `AUTO_KREA_BF16`: `1` by default when a Civitai token is present; set `0` to disable the BF16 auto-download.
 - `HF_TOKEN`: optional Hugging Face read token. Accept the official Klein 9B license
   with the same account before downloading. Unauthorized/gated files fail individually;
   partial files persist and available ComfyUI still launches.

@@ -24,6 +24,19 @@ export COMFY_ROOT="$ROOT" RUNPOD_STATE="$STATE"
 if ! "$PY" "$BUNDLE/setup.py" "$BUNDLE/models.lock.json" "$BUNDLE/nodes.lock.json"; then
   echo 'Some setup items failed. See setup-status.json; starting available ComfyUI anyway.'
 fi
+# Isolated BF16 downloader (optional). It runs alongside the existing server.
+# Never installs/replaces the GGUF loader or any existing model.
+if [[ -n "${CIVITAI_TOKEN:-}" && "${AUTO_KREA_BF16:-1}" != "0" ]]; then
+  (
+    exec 9>&-  # Child must not inherit the main startup lock.
+    exec 7>"$STATE/krea-bf16-auto.lock"
+    flock -n 7 || exit 0
+    exec "$PY" "$BUNDLE/civitai-kreanoct-bf16.py"
+  ) >>"$STATE/krea-bf16-auto.log" 2>&1 </dev/null &
+  echo "Krea Noct BF16 download runs separately; see $STATE/krea-bf16-auto.log"
+else
+  echo 'Krea Noct BF16 skipped (set CIVITAI_TOKEN in RunPod environment).'
+fi
 cd "$ROOT"
 INSTANCE="${COMFY_INSTANCE_DIR:-/workspace/comfy8188}"
 mkdir -p "$INSTANCE"/{user,input,output,temp}

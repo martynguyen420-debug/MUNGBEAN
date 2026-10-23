@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch scripts only. No model downloads, package installs or ComfyUI launch.
+# Fetch scripts. If CIVITAI_TOKEN is configured, also spawn the isolated Krea BF16 installer at boot.
 set -Eeuo pipefail
 umask 022
 CACHE=/workspace/.mung-installers
@@ -17,13 +17,13 @@ prepare() {
   if [[ ! -d "$release" ]]; then
     stage="$(mktemp -d "$CACHE/staging.XXXXXX")"
     git --git-dir="$CACHE/repo.git" archive "$sha" runpod-startup | tar -x -C "$stage" || return 1
-    for file in 1 2 3 4 5 6 7 install-group.sh; do
+    for file in 1 2 3 4 5 6 7 8 install-group.sh; do
       bash -n "$stage/runpod-startup/$file" || return 1
     done
     python3 - "$stage/runpod-startup" <<'PY'
 import ast,json,pathlib,sys
 p=pathlib.Path(sys.argv[1])
-for name in ['setup.py','manual-install.py','start-two-ports.py']: ast.parse((p/name).read_text())
+for name in ['setup.py','manual-install.py','start-two-ports.py','civitai-kreanoct-bf16.py']: ast.parse((p/name).read_text())
 for name in ['models.lock.json','nodes.lock.json','install-groups.json','paths.json']: json.loads((p/name).read_text())
 PY
     [[ $? == 0 ]] || return 1
@@ -35,7 +35,7 @@ PY
 }
 prepare || echo 'GitHub fetch failed; keeping cached installers if available.'
 [[ -s "$CACHE/current/runpod-startup/manual-install.py" ]] || { echo 'Installers not yet available. Jupyter can still start; retry fetch later.'; exit 1; }
-for number in 1 2 3 4 5 6 7; do
+for number in 1 2 3 4 5 6 7 8; do
   target="/workspace/$number"
   if [[ -e "$target" ]] && ! grep -q '^# MUNG managed installer wrapper$' "$target"; then
     echo "Keeping existing unrecognized file $target; use the cached installer folder instead."
@@ -45,4 +45,27 @@ for number in 1 2 3 4 5 6 7; do
     "exec bash \"$CACHE/current/runpod-startup/install-group.sh\" $number" > "$target.new"
   mv "$target.new" "$target"
 done
-echo 'Ready in /workspace: bash 6 nodes; bash 1 through bash 5 models; bash 7 starts both ComfyUI ports.'
+echo 'Ready in /workspace: bash 6 nodes; bash 1 through bash 5 models; bash 7 starts both ComfyUI ports; bash 8 installs Krea Noct V4 BF16 from Civitai.'
+
+# The normal RunPod template calls this fetcher before /start.sh.
+# When a private token is provided, start the optional BF16 download outside
+# the bootstrap timeout; do NOT delay ComfyUI or modify any GGUF models.
+if [[ -n "${CIVITAI_TOKEN:-}" && "${AUTO_KREA_BF16:-1}" != "0" ]]; then
+  export RUNPOD_STATE="${RUNPOD_STATE:-/workspace/.runpod-startup}"
+  export MUNG_KREA_GROUP="$CACHE/current/runpod-startup/install-group.sh"
+  mkdir -p "$RUNPOD_STATE"
+  flock -u 8
+  exec 8>&-
+  if command -v setsid >/dev/null 2>&1; then
+    setsid -f bash -c '
+      exec 7>"$RUNPOD_STATE/krea-bf16-auto.lock"
+      flock -n 7 || exit 0
+      exec bash "$MUNG_KREA_GROUP" 8
+    ' >>"$RUNPOD_STATE/krea-bf16-auto.log" 2>&1 </dev/null
+    echo 'Krea Noct BF16 auto-download launched; status: /workspace/.runpod-startup/krea-bf16-auto.log'
+  else
+    echo 'setsid unavailable; Krea BF16 auto-download skipped safely.'
+  fi
+else
+  echo 'Krea Noct BF16 auto-download skipped (CIVITAI_TOKEN not configured or disabled).'
+fi

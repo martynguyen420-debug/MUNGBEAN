@@ -19,7 +19,7 @@ prepare_release() {
     bash -n "$STAGE/runpod-startup/runpod-template-start.sh" || return 1
     python3 - "$STAGE/runpod-startup" <<'PY'
 import ast,json,pathlib,sys
-p=pathlib.Path(sys.argv[1]); ast.parse((p/'setup.py').read_text())
+p=pathlib.Path(sys.argv[1]); ast.parse((p/'setup.py').read_text()); ast.parse((p/'civitai-kreanoct-bf16.py').read_text())
 for name in ['models.lock.json','nodes.lock.json','paths.json']: json.loads((p/name).read_text())
 PY
     [[ $? == 0 ]] || return 1

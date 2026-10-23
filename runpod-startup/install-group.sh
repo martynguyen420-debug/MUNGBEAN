@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 BUNDLE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 GROUP="${1:-}"
-[[ "$GROUP" =~ ^[1-7]$ ]] || { echo 'Choose 1 through 7.'; exit 1; }
+[[ "$GROUP" =~ ^[1-8]$ ]] || { echo 'Choose 1 through 8.'; exit 1; }
 ROOT="${COMFY_ROOT:-/workspace/runpod-slim/ComfyUI}"
 PY="${COMFY_PYTHON:-}"
 if [[ -z "$PY" ]]; then
@@ -18,5 +18,8 @@ exec 9>"$RUNPOD_STATE/start.lock"
 flock -n 9 || { echo 'Another installer/startup is active. Wait for it to finish.'; exit 1; }
 if [[ "$GROUP" == 7 ]]; then
   exec "$PY" "$BUNDLE/start-two-ports.py"
+fi
+if [[ "$GROUP" == 8 ]]; then
+  exec "$PY" "$BUNDLE/civitai-kreanoct-bf16.py"
 fi
 exec "$PY" "$BUNDLE/manual-install.py" "$GROUP"
