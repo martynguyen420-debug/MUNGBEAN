@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 BUNDLE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 GROUP="${1:-}"
-[[ "$GROUP" =~ ^[1-8]$ ]] || { echo 'Choose 1 through 8.'; exit 1; }
+[[ "$GROUP" =~ ^(10|[1-9])$ ]] || { echo 'Choose 1 through 10.'; exit 1; }
 ROOT="${COMFY_ROOT:-/workspace/runpod-slim/ComfyUI}"
 PY="${COMFY_PYTHON:-}"
 if [[ -z "$PY" ]]; then
@@ -21,5 +21,8 @@ if [[ "$GROUP" == 7 ]]; then
 fi
 if [[ "$GROUP" == 8 ]]; then
   exec "$PY" "$BUNDLE/civitai-kreanoct-bf16.py"
+fi
+if [[ "$GROUP" == 9 || "$GROUP" == 10 ]]; then
+  exec "$PY" "$BUNDLE/download-extra-models.py" "$GROUP"
 fi
 exec "$PY" "$BUNDLE/manual-install.py" "$GROUP"
