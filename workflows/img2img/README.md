@@ -4,12 +4,12 @@ Drag one of the four JSON files into ComfyUI. Upload your source image into **Lo
 
 | File | Model | Required companion files |
 | --- | --- | --- |
-| 01 ERNIE base-compatible | ERNIE Image | `ernie-image.safetensors`, `ministral-3-3b.safetensors`, `flux2-vae.safetensors` |
+| 01 ERNIE denoise refinement | ERNIE Image | `ernie-image.safetensors`, `ministral-3-3b.safetensors`, `flux2-vae.safetensors` |
 | 02 CyberRealistic | CyberRealistic FLUX.1 v2.5 FP8 diffusion-only | `clip_l.safetensors`, `t5xxl_fp8_e4m3fn.safetensors`, `ae.safetensors` |
 | 03 Krea2 V2.5 | Anything2RealCharacters V2.5 FP8 diffusion model | `qwen3vl_4b_fp8_scaled.safetensors`, `qwen_image_vae.safetensors` |
 | 04 Krea2 V3 LoRA | Krea2 Turbo + Anything2RealCharacters V3 LoRA | Same Krea2 encoder/VAE and `krea2_turbo_fp8_scaled.safetensors` |
 
-**ERNIE Abliterated limitation:** The ponpoke release contains Diffusers-format encoder components. Workflow 01 deliberately uses regular ERNIE encoder files; it is **not an abliterated workflow** without a compatible conversion/loader. The image-to-image setup remains experimental.
+**ERNIE Abliterated limitation:** The ponpoke release contains Diffusers-format encoder components. Workflow 01 deliberately uses regular ERNIE encoder files; it is **not an abliterated workflow** without a compatible conversion/loader. ERNIE is fundamentally text-to-image; this ComfyUI workflow is **denoise-based image refinement only**, not instruction-based editing. It replaces the official template’s empty FLUX2 latent input with **Load Image → ImageScale → VAEEncode (flux2-vae)**. Initial settings are **50 steps, CFG 4, Euler, Simple, denoise 0.4, fixed seed**. It is structurally checked but **not generation-tested on the user's pod**. You cannot use the ponpoke Diffusers encoder files as drop-in ComfyUI safetensors.
 
 **Krea requires ComfyUI versions supporting** `TextEncodeQwenImageEditPlus` and `FluxKontextMultiReferenceLatentMethod`. File basenames may need changing in loader dropdowns to match your pod.
 
