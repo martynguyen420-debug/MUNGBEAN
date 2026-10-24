@@ -54,7 +54,7 @@ bash 12
 These optional models are pinned in `sdxl-models.lock.json`, separate from the
 automatic startup model set. The existing downloader verifies exact byte counts
 and SHA256, reuses matching files, resumes partials and preserves mismatches.
-Groups 1–10 and both services are unchanged. No extra custom nodes or separate
+Group model selections and both services are unchanged. No extra custom nodes or separate
 encoders/VAE are required: use **Load Checkpoint** in ComfyUI.
 
 - 11: `models/checkpoints/biglustydonutmixNSFW_v12.safetensors` —
@@ -70,6 +70,40 @@ and contain the UNet, both text encoders and VAE. These are third-party mirrors;
 Civitai's API returned HTTP 451 here, so no live Civitai version claim is made.
 Full model payloads were not downloaded for this check; target GPU generation
 has not been tested.
+
+### Fast Hugging Face downloads (enabled by default)
+
+New Hugging Face downloads use `huggingface_hub` + `hf_xet`, with
+`HF_XET_HIGH_PERFORMANCE=1` unless explicitly overridden. The downloader installs
+its own small environment in `/workspace/.runpod-startup/hf-download-venv`;
+it does not change ComfyUI, torch or CUDA packages. Exact file sizes and SHA256
+are checked before a staged file becomes the installed model.
+Existing verified models are reused. Existing nonempty curl `.part` files
+continue through curl to preserve their progress. Interrupted Xet transfers
+reuse their staging cache. Set `HF_FAST_DOWNLOAD=0` to use the old curl route.
+Civitai downloads (group 8) use Civitai's own transfer, not Hugging Face Xet.
+
+The two [importable workflows for 11 and 12](workflows/README.md) are included
+with the fetched scripts. Drag the matching JSON into ComfyUI after installing.
+
+### Saved private Civitai key
+
+The account secret is named `MUNG_CIVITAI_TOKEN`. The startup JSON files now
+include this environment mapping:
+
+```json
+"env": {
+  "CIVITAI_TOKEN": "{{ RUNPOD_SECRET_MUNG_CIVITAI_TOKEN }}",
+  "HF_XET_HIGH_PERFORMANCE": "1"
+}
+```
+
+Apply the `env` entries to the RunPod pod/template environment settings as well
+as the entrypoint/command when using these configuration files. RunPod resolves
+the secret on container startup. A shell script cannot retrieve a write-only
+RunPod account secret by itself. Fetching scripts alone does not configure a
+pod's environment. Once this mapping is applied, `bash 8` uses the key without
+prompting. The actual key is never stored in GitHub.
 
 ### Numbers 9 and 10: ERNIE + CyberRealistic FLUX.1
 

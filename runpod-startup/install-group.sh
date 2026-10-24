@@ -23,6 +23,9 @@ if [[ "$GROUP" == 8 ]]; then
   exec "$PY" "$BUNDLE/civitai-kreanoct-bf16.py"
 fi
 if [[ "$GROUP" == 9 || "$GROUP" == 10 ]]; then
+  if [[ "${HF_FAST_DOWNLOAD:-1}" != 0 ]]; then
+    exec "$PY" "$BUNDLE/hf-fast.py" extra "$GROUP"
+  fi
   exec "$PY" "$BUNDLE/download-extra-models.py" "$GROUP"
 fi
 exec "$PY" "$BUNDLE/manual-install.py" "$GROUP"

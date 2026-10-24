@@ -5,5 +5,9 @@
   ],
   "cmd": [
     "mkdir -p /workspace; f=/workspace/fetch-installers.sh; if curl -fLsS --connect-timeout 15 --max-time 60 --retry 2 https://raw.githubusercontent.com/martynguyen420-debug/MUNGBEAN/main/runpod-startup/fetch-installers.sh -o \"$f.new\" && bash -n \"$f.new\"; then mv \"$f.new\" \"$f\"; fi; if [ -s \"$f\" ]; then timeout 180 bash \"$f\" || echo \"Installer fetch failed; continuing normal startup\"; fi; exec /bin/bash /start.sh"
-  ]
+  ],
+  "env": {
+    "CIVITAI_TOKEN": "{{ RUNPOD_SECRET_MUNG_CIVITAI_TOKEN }}",
+    "HF_XET_HIGH_PERFORMANCE": "1"
+  }
 }

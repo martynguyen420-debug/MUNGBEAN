@@ -105,6 +105,12 @@ def download(asset, dest, url):
     remaining = asset['size'] - (part.stat().st_size if part.exists() else 0)
     if shutil.disk_usage(dest.parent).free < remaining + 1024**3:
         raise RuntimeError('Insufficient free storage for ' + dest.name)
+    # Fast Xet is the default for new HF transfers. Preserve existing curl partial
+    # progress rather than downloading that model again through a different cache.
+    if remaining and not (part.exists() and part.stat().st_size) and os.environ.get('HF_FAST_DOWNLOAD', '1') != '0':
+        subprocess.run([sys.executable, str(Path(__file__).with_name('hf-fast.py')),
+                        'download', json.dumps(asset), str(dest)], check=True)
+        return
     if remaining:
         # Token travels on stdin, not command line or disk. Curl follows HF CDN redirects
         # without forwarding Authorization to a different host.

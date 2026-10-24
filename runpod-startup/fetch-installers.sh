@@ -23,8 +23,9 @@ prepare() {
     python3 - "$stage/runpod-startup" <<'PY'
 import ast,json,pathlib,sys
 p=pathlib.Path(sys.argv[1])
-for name in ['setup.py','manual-install.py','start-two-ports.py','civitai-kreanoct-bf16.py','download-extra-models.py']: ast.parse((p/name).read_text())
+for name in ['setup.py','manual-install.py','start-two-ports.py','civitai-kreanoct-bf16.py','download-extra-models.py','hf-fast.py']: ast.parse((p/name).read_text())
 for name in ['models.lock.json','sdxl-models.lock.json','nodes.lock.json','install-groups.json','paths.json']: json.loads((p/name).read_text())
+for workflow in (p/'workflows').glob('*.json'): json.loads(workflow.read_text())
 PY
     [[ $? == 0 ]] || return 1
     mkdir -p "$CACHE/releases" || return 1
