@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 BUNDLE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 GROUP="${1:-}"
-[[ "$GROUP" =~ ^(10|[1-9])$ ]] || { echo 'Choose 1 through 10.'; exit 1; }
+[[ "$GROUP" =~ ^(1[0-2]|[1-9])$ ]] || { echo 'Choose 1 through 12.'; exit 1; }
 ROOT="${COMFY_ROOT:-/workspace/runpod-slim/ComfyUI}"
 PY="${COMFY_PYTHON:-}"
 if [[ -z "$PY" ]]; then

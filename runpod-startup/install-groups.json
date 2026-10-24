@@ -44,5 +44,17 @@
   "6": {
     "name": "Custom nodes: ComfyUI-GGUF",
     "destinations": []
+  },
+  "11": {
+    "name": "BigLustyDonutMix v1.2 (SDXL)",
+    "destinations": [
+      "checkpoints/biglustydonutmixNSFW_v12.safetensors"
+    ]
+  },
+  "12": {
+    "name": "MoP Mixture of Perverts v5.1 DMD (SDXL)",
+    "destinations": [
+      "checkpoints/mopMixtureOfPerverts_v51DMD.safetensors"
+    ]
   }
 }

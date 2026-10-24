@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "assets": [
+    {
+      "repo": "75dhsx/DonutsDelivery",
+      "revision": "9ff8cda92d26a4d8175d6e231d7d7328012bc608",
+      "path": "biglustydonutmixNSFW_v12.safetensors",
+      "destination": "checkpoints/biglustydonutmixNSFW_v12.safetensors",
+      "size": 6938462898,
+      "sha256": "939e35591308562bba43a9ca0a12771afe2f113dff3894dfe348559e9d6bfd49"
+    },
+    {
+      "repo": "WPexpertspt/Mixture-of-Perverts-DMD",
+      "revision": "e9935fd609f32ad4234115a4456e98283d293419",
+      "path": "mopMixtureOfPerverts_v51DMD.safetensors",
+      "destination": "checkpoints/mopMixtureOfPerverts_v51DMD.safetensors",
+      "size": 6938100234,
+      "sha256": "8460788149fd57fe30b4d2124eb22739d371194a71662eb93b864d924562f5a8"
+    }
+  ],
+  "disabled": []
+}

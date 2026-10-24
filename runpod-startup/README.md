@@ -6,11 +6,11 @@ It does not install ComfyUI, Python, CUDA or torch on an empty pod. Choose an im
 that already provides this installation, or set `COMFY_ROOT` and `COMFY_PYTHON`.
 Linux must provide bash, git, curl, flock, tar and python3. Expose 8188 as HTTP.
 
-## Manual Jupyter recovery: installers 1 to 10
+## Manual Jupyter recovery: installers 1 to 12
 
 For the existing image with `/start.sh`, use `manual-template-start.json` (or the
 single line in `manual-template-command.txt`) as the template startup configuration.
-It fetches only the scripts, creates `/workspace/1` through `/workspace/10`, then runs
+It fetches only the scripts, creates `/workspace/1` through `/workspace/12`, then runs
 `/start.sh` normally even if fetching fails. No locked model groups install at boot. If CIVITAI_TOKEN is configured, an isolated Krea Noct V4 BF16 download starts automatically without blocking /start.sh.
 Fetches have a 180-second limit and keep a cached copy for later launches.
 
@@ -37,6 +37,39 @@ If this checkout already exists, update it using
 | `bash 8` | **Krea Noct V4 BF16** from Civitai (separate from INT8 group 5; does not touch Phr00t) |
 | `bash 9` | ERNIE-Image Abliterated gated encoders + standard ERNIE ComfyUI models |
 | `bash 10` | CyberRealistic FLUX.1 v2.5 FP8 + CLIP-L, T5-XXL FP8 and FLUX.1 VAE |
+| `bash 11` | BigLustyDonutMix v1.2 SDXL checkpoint, embedded CLIP-L/CLIP-G and VAE |
+| `bash 12` | MoP (Mixture of Perverts) v5.1 DMD SDXL checkpoint, embedded CLIP-L/CLIP-G and VAE |
+
+### Numbers 11 and 12
+
+Refresh the fetch list, then install either model:
+
+```bash
+cd /workspace
+bash /workspace/MUNGBEAN/runpod-startup/fetch-installers.sh
+bash 11
+bash 12
+```
+
+These optional models are pinned in `sdxl-models.lock.json`, separate from the
+automatic startup model set. The existing downloader verifies exact byte counts
+and SHA256, reuses matching files, resumes partials and preserves mismatches.
+Groups 1–10 and both services are unchanged. No extra custom nodes or separate
+encoders/VAE are required: use **Load Checkpoint** in ComfyUI.
+
+- 11: `models/checkpoints/biglustydonutmixNSFW_v12.safetensors` —
+  [75dhsx/DonutsDelivery](https://huggingface.co/75dhsx/DonutsDelivery/blob/9ff8cda92d26a4d8175d6e231d7d7328012bc608/biglustydonutmixNSFW_v12.safetensors),
+  6,938,462,898 bytes.
+- 12: `models/checkpoints/mopMixtureOfPerverts_v51DMD.safetensors` —
+  [WPexpertspt/Mixture-of-Perverts-DMD](https://huggingface.co/WPexpertspt/Mixture-of-Perverts-DMD/blob/e9935fd609f32ad4234115a4456e98283d293419/mopMixtureOfPerverts_v51DMD.safetensors),
+  6,938,100,234 bytes. This is specifically v5.1 DMD, not v7.1, NO DMD or Illustrious.
+
+Verified on 25 October 2026 using Hugging Face revision/file metadata and small
+HTTP range reads of the safetensors headers: both identify SDXL base architecture
+and contain the UNet, both text encoders and VAE. These are third-party mirrors;
+Civitai's API returned HTTP 451 here, so no live Civitai version claim is made.
+Full model payloads were not downloaded for this check; target GPU generation
+has not been tested.
 
 ### Numbers 9 and 10: ERNIE + CyberRealistic FLUX.1
 

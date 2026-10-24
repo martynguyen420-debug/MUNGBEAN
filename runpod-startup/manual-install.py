@@ -22,7 +22,8 @@ def select_group(manifest, nodes, group):
 def main():
     bundle = Path(__file__).parent
     group = sys.argv[1]
-    name, manifest, nodes = select_group(json.loads((bundle / 'models.lock.json').read_text()),
+    lock = 'sdxl-models.lock.json' if group in {'11', '12'} else 'models.lock.json'
+    name, manifest, nodes = select_group(json.loads((bundle / lock).read_text()),
                                        json.loads((bundle / 'nodes.lock.json').read_text()), group)
     print('Installing group ' + group + ': ' + name, flush=True)
     state = Path(os.environ['RUNPOD_STATE'])
