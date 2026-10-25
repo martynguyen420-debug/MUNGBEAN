@@ -56,5 +56,13 @@
     "destinations": [
       "checkpoints/mopMixtureOfPerverts_v51DMD.safetensors"
     ]
+  },
+  "13": {
+    "name": "PornMaster FLUX.2 Klein V4 Turbo INT8 ConvRot",
+    "destinations": [
+      "diffusion_models/pornmasterFlux2Klein_v4TurboInt8.safetensors",
+      "text_encoders/qwen_3_8b.safetensors",
+      "vae/flux2-vae.safetensors"
+    ]
   }
 }
