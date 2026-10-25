@@ -76,7 +76,7 @@ def required_core_features(assets):
             required.add('qwen_image')
         elif 'kreanoct' in name:
             required.add('krea2')
-        elif any(term in name for term in ('klein', 'miraclein', 'aisha')):
+        elif any(term in name for term in ('klein', 'miraclein', 'aisha', 'pornmaster')):
             required.add('klein')
     return required
 
