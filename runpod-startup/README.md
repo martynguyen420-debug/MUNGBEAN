@@ -6,11 +6,11 @@ It does not install ComfyUI, Python, CUDA or torch on an empty pod. Choose an im
 that already provides this installation, or set `COMFY_ROOT` and `COMFY_PYTHON`.
 Linux must provide bash, git, curl, flock, tar and python3. Expose 8188 as HTTP.
 
-## Manual Jupyter recovery: installers 1 to 12
+## Manual Jupyter recovery: installers 1 to 13
 
 For the existing image with `/start.sh`, use `manual-template-start.json` (or the
 single line in `manual-template-command.txt`) as the template startup configuration.
-It fetches only the scripts, creates `/workspace/1` through `/workspace/12`, then runs
+It fetches only the scripts, creates `/workspace/1` through `/workspace/13`, then runs
 `/start.sh` normally even if fetching fails. No locked model groups install at boot. If CIVITAI_TOKEN is configured, an isolated Krea Noct V4 BF16 download starts automatically without blocking /start.sh.
 Fetches have a 180-second limit and keep a cached copy for later launches.
 
@@ -39,6 +39,38 @@ If this checkout already exists, update it using
 | `bash 10` | CyberRealistic FLUX.1 v2.5 FP8 + CLIP-L, T5-XXL FP8 and FLUX.1 VAE |
 | `bash 11` | BigLustyDonutMix v1.2 SDXL checkpoint, embedded CLIP-L/CLIP-G and VAE |
 | `bash 12` | MoP (Mixture of Perverts) v5.1 DMD SDXL checkpoint, embedded CLIP-L/CLIP-G and VAE |
+| `bash 13` | PornMaster FLUX.2 Klein V4 Turbo INT8 ConvRot + shared Klein encoder/VAE |
+
+### Number 13: PornMaster V4 Turbo INT8 ConvRot (manual only)
+
+Refresh the numbered installers and run:
+
+```bash
+cd /workspace
+bash /workspace/MUNGBEAN/runpod-startup/fetch-installers.sh
+bash 13
+```
+
+This installs `pornmasterFlux2Klein_v4TurboInt8.safetensors` (9,405,866,864 bytes)
+into `models/diffusion_models/`, and reuses the pinned
+`qwen_3_8b.safetensors` text encoder and `flux2-vae.safetensors` VAE.
+These are FLUX.2 Klein 9B support files, **not the Qwen image-edit encoder**.
+The model mirror is pinned to
+[`Kerstal/f2-klein-9b_model` commit `0acab40`](https://huggingface.co/Kerstal/f2-klein-9b_model/commit/0acab4020afd57452069fa3cb0bf7e79a3d05404)
+and the published SHA-256 is checked before installation.
+
+**INT8 loading:** this prequantized checkpoint may need
+[ComfyUI-INT8-Fast](https://github.com/BobJohnson24/ComfyUI-INT8-Fast)
+and its **Load Diffusion Model INT8 (W8A8)** node, rather than the
+stock Load Diffusion Model node, depending on your ComfyUI version and
+quantization format support. Install that custom node separately through
+ComfyUI Manager if you don't already have it; do not modify PyTorch/CUDA
+automatically. Use an existing FLUX.2 Klein 9B workflow with the INT8 loader.
+
+This group is **not** in the auto-start model manifest. Running `bash 13`
+won't replace other models or restart ports 8188/8189.
+As with other numbered installers, Hugging Face Xet acceleration is enabled
+by default; existing valid files are reused.
 
 ### Numbers 11 and 12
 
