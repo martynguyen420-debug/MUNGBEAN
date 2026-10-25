@@ -22,8 +22,18 @@ def select_group(manifest, nodes, group):
 def main():
     bundle = Path(__file__).parent
     group = sys.argv[1]
-    lock = 'sdxl-models.lock.json' if group in {'11', '12'} else 'models.lock.json'
-    name, manifest, nodes = select_group(json.loads((bundle / lock).read_text()),
+    if group == '13':
+        # Optional, manual-only PornMaster. Reuse the exact pinned shared Klein
+        # encoder/VAE assets without duplicating their checksums or downloading
+        # other Klein checkpoints.
+        manifest = json.loads((bundle / 'pornmaster-models.lock.json').read_text())
+        shared = json.loads((bundle / 'models.lock.json').read_text())
+        shared_paths = {'text_encoders/qwen_3_8b.safetensors', 'vae/flux2-vae.safetensors'}
+        manifest['assets'].extend(a for a in shared['assets'] if a['destination'] in shared_paths)
+    else:
+        lock = 'sdxl-models.lock.json' if group in {'11', '12'} else 'models.lock.json'
+        manifest = json.loads((bundle / lock).read_text())
+    name, manifest, nodes = select_group(manifest,
                                        json.loads((bundle / 'nodes.lock.json').read_text()), group)
     print('Installing group ' + group + ': ' + name, flush=True)
     state = Path(os.environ['RUNPOD_STATE'])
