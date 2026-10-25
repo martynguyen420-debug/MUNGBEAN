@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "assets": [
+    {
+      "repo": "Kerstal/f2-klein-9b_model",
+      "revision": "0acab4020afd57452069fa3cb0bf7e79a3d05404",
+      "path": "pornmasterFlux2Klein_v4TurboInt8.safetensors",
+      "destination": "diffusion_models/pornmasterFlux2Klein_v4TurboInt8.safetensors",
+      "size": 9405866864,
+      "sha256": "a229a7bf5ace91c1ac4f052e4ea6a6c2e182c8c621d969d6f95fa9bf4e0a48b5"
+    }
+  ],
+  "disabled": []
+}
