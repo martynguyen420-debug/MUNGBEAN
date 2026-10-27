@@ -56,10 +56,10 @@ klein() {
 }
 known_model() {
   case "$1" in
-    4) klein; download black-forest-labs/FLUX.2-klein-9B flux-2-klein-9b.safetensors "$M/diffusion_models" ;;
+    1) download Phr00t/Qwen-Image-Edit-Rapid-AIO v23/Qwen-Rapid-AIO-NSFW-v23.safetensors "$M/checkpoints" ;;\n    2) download Phr00t/Qwen-Image-Edit-Rapid-AIO v19/Qwen-Rapid-AIO-NSFW-v19.safetensors "$M/checkpoints" ;;\n    3) download Phr00t/Qwen-Image-Edit-Rapid-AIO v23/Qwen-Rapid-AIO-NSFW-v23.safetensors "$M/checkpoints" ;;\n    4) klein; download black-forest-labs/FLUX.2-klein-9B flux-2-klein-9b.safetensors "$M/diffusion_models" ;;
     5) klein; download Aisha-AI-Official/flux-2-klein-models aisha_nsfw_beta_v9_7_distilled_bf16.safetensors "$M/diffusion_models" dataset ;;
     8) echo "Krea Noct V4 INT8: source is intentionally not hard-coded until its exact publisher filename is verified." ;;
-    *) echo "This entry is listed, but no verified public repository+filename is configured yet. Nothing was downloaded." ;;
+    13) echo "BigLustyDonutMix is a Diffusers repository; use the repository snapshot John6666/biglustydonutmix-v10-sdxl rather than a guessed single checkpoint." ;;\n    *) echo "This entry is listed, but no verified public repository+filename is configured yet. Nothing was downloaded." ;;
   esac
 }
 verify() {
