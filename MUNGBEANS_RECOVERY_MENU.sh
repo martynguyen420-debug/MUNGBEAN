@@ -2,11 +2,14 @@
 set -Eeuo pipefail
 ROOT="${COMFY_ROOT:-}"
 if [[ -z "$ROOT" ]]; then
-  for p in /workspace/runpod-slim/ComfyUI /workspace/ComfyUI /workspace-global/runpod-slim/ComfyUI; do
+  for p in /workspace/runpod-slim/ComfyUI /workspace/ComfyUI /workspace-global/runpod-slim/ComfyUI /workspace/ComfyUI_windows_portable/ComfyUI; do
     if [[ -f "$p/main.py" ]]; then ROOT="$p"; break; fi
   done
 fi
-[[ -n "$ROOT" && -f "$ROOT/main.py" ]] || { echo "ComfyUI not found. Set COMFY_ROOT=/actual/path"; exit 1; }
+if [[ -z "$ROOT" ]]; then
+  ROOT="$(find /workspace -maxdepth 6 -type f -name main.py -printf '%h\\n' 2>/dev/null | head -n 1 || true)"
+fi
+[[ -n "$ROOT" && -f "$ROOT/main.py" ]] || { echo "ComfyUI not found under /workspace. Run the startup fetcher first: bash /tmp/fetch-installers.sh"; exit 1; }
 PY="$ROOT/.venv/bin/python"; [[ -x "$PY" ]] || PY="$(command -v python3)"
 M="$ROOT/models"
 mkdir -p "$M"/{diffusion_models,unet,text_encoders,vae,loras,clip_vision,checkpoints} "$ROOT/custom_nodes"
