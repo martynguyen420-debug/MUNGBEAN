@@ -7,10 +7,10 @@ if [[ -z "$ROOT" ]]; then
   done
 fi
 [[ -n "$ROOT" && -f "$ROOT/main.py" ]] || { echo "ComfyUI not found. Set COMFY_ROOT=/actual/path"; exit 1; }
-PY="$ROOT/.venv/bin/python"
-[[ -x "$PY" ]] || PY="$(command -v python3)"
+PY="$ROOT/.venv/bin/python"; [[ -x "$PY" ]] || PY="$(command -v python3)"
 M="$ROOT/models"
 mkdir -p "$M"/{diffusion_models,unet,text_encoders,vae,loras,clip_vision,checkpoints} "$ROOT/custom_nodes"
+
 download() {
   local repo="$1" file="$2" folder="$3" type="${4:-model}" base="${2##*/}"
   mkdir -p "$folder"
@@ -46,9 +46,7 @@ nodes() {
     if [[ ! -d "$ROOT/custom_nodes/$dir" ]]; then
       git -c http.version=HTTP/1.1 clone --depth 1 "$url" "$ROOT/custom_nodes/$dir" || { echo "Clone failed: $dir"; continue; }
     fi
-    if [[ -f "$ROOT/custom_nodes/$dir/requirements.txt" ]]; then
-      "$PY" -m pip install -r "$ROOT/custom_nodes/$dir/requirements.txt" || echo "Requirements failed: $dir"
-    fi
+    [[ ! -f "$ROOT/custom_nodes/$dir/requirements.txt" ]] || "$PY" -m pip install -r "$ROOT/custom_nodes/$dir/requirements.txt" || echo "Requirements failed: $dir"
   done
   echo "Restart ComfyUI after installing nodes."
 }
@@ -56,23 +54,29 @@ klein() {
   download Comfy-Org/vae-text-encorder-for-flux-klein-9b split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors "$M/text_encoders"
   download Comfy-Org/vae-text-encorder-for-flux-klein-9b split_files/vae/flux2-vae.safetensors "$M/vae"
 }
+known_model() {
+  case "$1" in
+    4) klein; download black-forest-labs/FLUX.2-klein-9B flux-2-klein-9b.safetensors "$M/diffusion_models" ;;
+    5) klein; download Aisha-AI-Official/flux-2-klein-models aisha_nsfw_beta_v9_7_distilled_bf16.safetensors "$M/diffusion_models" dataset ;;
+    8) echo "Krea Noct V4 INT8: source is intentionally not hard-coded until its exact publisher filename is verified." ;;
+    *) echo "This entry is listed, but no verified public repository+filename is configured yet. Nothing was downloaded." ;;
+  esac
+}
 verify() {
   echo "ComfyUI: $ROOT | Python: $PY"
-  find "$M" -type f \( -iname '*rapid*' -o -iname '*aisha*' -o -iname '*klein*' -o -iname '*vae*' -o -iname '*qwen*' \) -printf '%p (%s bytes)\n' | sort
+  find "$M" -type f -printf '%p (%s bytes)\n' | sort
   find "$ROOT/custom_nodes" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort
   df -h "$ROOT"
 }
 while true; do
-  printf '\n=== MUNGBEANS RunPod Setup ===\n1. Install custom nodes\n2. Klein encoder + VAE\n3. Aisha 9.7 BF16\n4. Phr00t v19 (manual source check)\n5. Phr00t v23 (manual source check)\n6. Qwen Rapid v23 GGUF (manual source check)\n7. Flux Klein 9B\n8. Verify installed models and nodes\n9. Hugging Face login\n0. Exit\n'
+  printf '\n=== MUNGBEANS RunPod Setup (14 models) ===\n'
+  printf '1. Phr00t Qwen Rapid v19+v23 GGUF Q8\n2. Phr00t v19 AIO\n3. Phr00t v23 AIO\n4. Flux Klein 9B + encoder + VAE\n5. Aisha v9.7 BF16\n6. Miraclein NSFW v3 FP8\n7. WAN 2.2 Remix NSFW\n8. Krea Noct V4 INT8\n9. ERNIE Image Abliterated\n10. CyberRealistic Flux V2.5 FP8\n11. Pony Realism V23\n12. Flux Persephone\n13. BigLustyDonutMix SDXL\n14. Mixture of Perverts SDXL\n15. Install custom nodes\n16. Verify installed models and nodes\n17. Hugging Face login\n0. Exit\n'
   read -rp 'Choose: ' choice || exit 0
   case "$choice" in
-    1) nodes ;;
-    2) klein ;;
-    3) klein; download Aisha-AI-Official/flux-2-klein-models aisha_nsfw_beta_v9_7_distilled_bf16.safetensors "$M/diffusion_models" dataset ;;
-    4|5|6) echo "Phr00t repo and exact filenames need verification before enabling downloads. No unverified download executed." ;;
-    7) klein; download black-forest-labs/FLUX.2-klein-9B flux-2-klein-9b.safetensors "$M/diffusion_models" ;;
-    8) verify ;;
-    9) "$PY" -m pip install huggingface_hub; hf auth login ;;
+    1|2|3|4|5|6|7|8|9|10|11|12|13|14) known_model "$choice" ;;
+    15) nodes ;;
+    16) verify ;;
+    17) "$PY" -m pip install huggingface_hub; hf auth login ;;
     0) exit 0 ;;
     *) echo "Invalid option" ;;
   esac
