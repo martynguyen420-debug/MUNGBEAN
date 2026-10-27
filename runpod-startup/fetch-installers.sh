@@ -45,8 +45,11 @@ for number in 1 2 3 4 5 6 7 8 9 10 11 12 13; do
   printf '%s\n' '#!/usr/bin/env bash' '# MUNG managed installer wrapper' \
     "exec bash \"$CACHE/current/runpod-startup/install-group.sh\" $number" > "$target.new"
   mv "$target.new" "$target"
+  if [[ "$PWD" != "/workspace" ]]; then
+    ln -sfn "$target" "$PWD/$number"
+  fi
 done
-echo 'Ready in /workspace: bash 6 nodes; bash 1 through bash 5 models; bash 7 starts both ComfyUI ports; bash 8 installs Krea Noct V4 BF16 from Civitai; bash 9 installs ERNIE Abliterated; bash 10 installs CyberRealistic FLUX.1 v2.5; bash 11 installs BigLustyDonutMix v1.2; bash 12 installs MoP v5.1 DMD; bash 13 installs PornMaster V4 Turbo INT8 ConvRot.'
+echo 'Ready in /workspace and the current directory: use bash 1 through bash 13; bash 6 nodes; bash 7 starts both ComfyUI ports.'
 
 # The normal RunPod template calls this fetcher before /start.sh.
 # When a private token is provided, start the optional BF16 download outside
