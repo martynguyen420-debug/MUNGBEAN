@@ -56,10 +56,10 @@ klein() {
 }
 known_model() {
   case "$1" in
-    1) download Phr00t/Qwen-Image-Edit-Rapid-AIO v23/Qwen-Rapid-AIO-NSFW-v23.safetensors "$M/checkpoints" ;;\n    2) download Phr00t/Qwen-Image-Edit-Rapid-AIO v19/Qwen-Rapid-AIO-NSFW-v19.safetensors "$M/checkpoints" ;;\n    3) download Phr00t/Qwen-Image-Edit-Rapid-AIO v23/Qwen-Rapid-AIO-NSFW-v23.safetensors "$M/checkpoints" ;;\n    4) klein; download black-forest-labs/FLUX.2-klein-9B flux-2-klein-9b.safetensors "$M/diffusion_models" ;;
-    5) klein; download Aisha-AI-Official/flux-2-klein-models aisha_nsfw_beta_v9_7_distilled_bf16.safetensors "$M/diffusion_models" dataset ;;
-    8) echo "Krea Noct V4 INT8: source is intentionally not hard-coded until its exact publisher filename is verified." ;;
-    13) echo "BigLustyDonutMix is a Diffusers repository; use the repository snapshot John6666/biglustydonutmix-v10-sdxl rather than a guessed single checkpoint." ;;\n    *) echo "This entry is listed, but no verified public repository+filename is configured yet. Nothing was downloaded." ;;
+    1) download Phr00t/Qwen-Image-Edit-Rapid-AIO v23/Qwen-Rapid-AIO-NSFW-v23.safetensors "$M/checkpoints" ;;\n    2) download Phr00t/Qwen-Image-Edit-Rapid-AIO v19/Qwen-Rapid-AIO-NSFW-v19.safetensors "$M/checkpoints" ;;\n    3) download Phr00t/Qwen-Image-Edit-Rapid-AIO v23/Qwen-Rapid-AIO-NSFW-v23.safetensors "$M/checkpoints" ;;\n    2) klein; download black-forest-labs/FLUX.2-klein-9B flux-2-klein-9b.safetensors "$M/diffusion_models" ;;
+    3) klein; download Aisha-AI-Official/flux-2-klein-models aisha_nsfw_beta_v9_7_distilled_bf16.safetensors "$M/diffusion_models" dataset ;;
+    6) echo "Krea Noct V4 INT8: source is intentionally not hard-coded until its exact publisher filename is verified." ;;
+    11) echo "BigLustyDonutMix is a Diffusers repository; use the repository snapshot John6666/biglustydonutmix-v10-sdxl rather than a guessed single checkpoint." ;;\n    *) echo "This entry is listed, but no verified public repository+filename is configured yet. Nothing was downloaded." ;;
   esac
 }
 verify() {
@@ -70,10 +70,10 @@ verify() {
 }
 while true; do
   printf '\n=== MUNGBEANS RunPod Setup (14 models) ===\n'
-  printf '1. Phr00t Qwen Rapid v19+v23 GGUF Q8\n4. Flux Klein 9B + encoder + VAE\n5. Aisha v9.7 BF16\n6. Miraclein NSFW v3 FP8\n7. WAN 2.2 Remix NSFW\n8. Krea Noct V4 INT8\n9. ERNIE Image Abliterated\n10. CyberRealistic Flux V2.5 FP8\n11. Pony Realism V23\n12. Flux Persephone\n13. BigLustyDonutMix SDXL\n14. Mixture of Perverts SDXL\n15. Install custom nodes\n16. Verify installed models and nodes\n17. Hugging Face login\n0. Exit\n'
+  printf '1. Phr00t Qwen Rapid v19+v23 GGUF Q8\n2. Flux Klein 9B + encoder + VAE\n3. Aisha v9.7 BF16\n4. Miraclein NSFW v3 FP8\n5. WAN 2.2 Remix NSFW\n6. Krea Noct V4 INT8\n7. ERNIE Image Abliterated\n8. CyberRealistic Flux V2.5 FP8\n9. Pony Realism V23\n10. Flux Persephone\n11. BigLustyDonutMix SDXL\n12. Mixture of Perverts SDXL\n15. Install custom nodes\n16. Verify installed models and nodes\n17. Hugging Face login\n0. Exit\n'
   read -rp 'Choose: ' choice || exit 0
   case "$choice" in
-    1|4|5|6|7|8|9|10|11|12|13|14) known_model "$choice" ;;
+    1|2|3|4|5|6|7|8|9|10|11|12) known_model "$choice" ;;
     15) nodes ;;
     16) verify ;;
     17) "$PY" -m pip install huggingface_hub; hf auth login ;;
