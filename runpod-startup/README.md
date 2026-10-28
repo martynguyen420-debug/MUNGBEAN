@@ -1,3 +1,5 @@
+> **Current numbered manual commands:** in `/workspace` use `bash 1` through `bash 14` after the startup fetch has created the wrappers. `bash 11` is PornMaster, `bash 13` BigLustyDonutMix, and `bash 14` Mixture of Perverts. `bash 6` installs GGUF nodes; `bash 7` starts the two ports.
+
 # RunPod persistent ComfyUI startup - 22 October 2026
 
 This bundle targets an EXISTING ComfyUI at `/workspace/runpod-slim/ComfyUI`,
@@ -6,7 +8,7 @@ It does not install ComfyUI, Python, CUDA or torch on an empty pod. Choose an im
 that already provides this installation, or set `COMFY_ROOT` and `COMFY_PYTHON`.
 Linux must provide bash, git, curl, flock, tar and python3. Expose 8188 as HTTP.
 
-## Manual Jupyter recovery: installers 1 to 13
+## Manual Jupyter recovery: installers 1 to 14
 
 For the existing image with `/start.sh`, use `manual-template-start.json` (or the
 single line in `manual-template-command.txt`) as the template startup configuration.
@@ -37,18 +39,18 @@ If this checkout already exists, update it using
 | `bash 8` | **Krea Noct V4 BF16** from Civitai (separate from INT8 group 5; does not touch Phr00t) |
 | `bash 9` | ERNIE-Image Abliterated gated encoders + standard ERNIE ComfyUI models |
 | `bash 10` | CyberRealistic FLUX.1 v2.5 FP8 + CLIP-L, T5-XXL FP8 and FLUX.1 VAE |
-| `bash 11` | BigLustyDonutMix v1.2 SDXL checkpoint, embedded CLIP-L/CLIP-G and VAE |
-| `bash 12` | MoP (Mixture of Perverts) v5.1 DMD SDXL checkpoint, embedded CLIP-L/CLIP-G and VAE |
-| `bash 13` | PornMaster FLUX.2 Klein V4 Turbo INT8 ConvRot + shared Klein encoder/VAE |
+| `bash 13` | BigLustyDonutMix v1.2 SDXL checkpoint, embedded CLIP-L/CLIP-G and VAE |
+| `bash 14` | MoP (Mixture of Perverts) v5.1 DMD SDXL checkpoint, embedded CLIP-L/CLIP-G and VAE |
+| `bash 11` | PornMaster FLUX.2 Klein V4 Turbo INT8 ConvRot + shared Klein encoder/VAE |
 
-### Number 13: PornMaster V4 Turbo INT8 ConvRot (manual only)
+### Number 11: PornMaster V4 Turbo INT8 ConvRot (manual only)
 
 Refresh the numbered installers and run:
 
 ```bash
 cd /workspace
 bash /workspace/MUNGBEAN/runpod-startup/fetch-installers.sh
-bash 13
+bash 11
 ```
 
 This installs `pornmasterFlux2Klein_v4TurboInt8.safetensors` (9,405,866,864 bytes)
@@ -67,12 +69,12 @@ quantization format support. Install that custom node separately through
 ComfyUI Manager if you don't already have it; do not modify PyTorch/CUDA
 automatically. Use an existing FLUX.2 Klein 9B workflow with the INT8 loader.
 
-This group is **not** in the auto-start model manifest. Running `bash 13`
+This group is **not** in the auto-start model manifest. Running `bash 11`
 won't replace other models or restart ports 8188/8189.
 As with other numbered installers, Hugging Face Xet acceleration is enabled
 by default; existing valid files are reused.
 
-### Numbers 11 and 12
+### Numbers 13 and 14
 
 Refresh the fetch list, then install either model:
 
@@ -80,7 +82,7 @@ Refresh the fetch list, then install either model:
 cd /workspace
 bash /workspace/MUNGBEAN/runpod-startup/fetch-installers.sh
 bash 11
-bash 12
+bash 14
 ```
 
 These optional models are pinned in `sdxl-models.lock.json`, separate from the
@@ -89,10 +91,10 @@ and SHA256, reuses matching files, resumes partials and preserves mismatches.
 Group model selections and both services are unchanged. No extra custom nodes or separate
 encoders/VAE are required: use **Load Checkpoint** in ComfyUI.
 
-- 11: `models/checkpoints/biglustydonutmixNSFW_v12.safetensors` —
+- 13: `models/checkpoints/biglustydonutmixNSFW_v12.safetensors` —
   [75dhsx/DonutsDelivery](https://huggingface.co/75dhsx/DonutsDelivery/blob/9ff8cda92d26a4d8175d6e231d7d7328012bc608/biglustydonutmixNSFW_v12.safetensors),
   6,938,462,898 bytes.
-- 12: `models/checkpoints/mopMixtureOfPerverts_v51DMD.safetensors` —
+- 14: `models/checkpoints/mopMixtureOfPerverts_v51DMD.safetensors` —
   [WPexpertspt/Mixture-of-Perverts-DMD](https://huggingface.co/WPexpertspt/Mixture-of-Perverts-DMD/blob/e9935fd609f32ad4234115a4456e98283d293419/mopMixtureOfPerverts_v51DMD.safetensors),
   6,938,100,234 bytes. This is specifically v5.1 DMD, not v7.1, NO DMD or Illustrious.
 
@@ -115,7 +117,7 @@ continue through curl to preserve their progress. Interrupted Xet transfers
 reuse their staging cache. Set `HF_FAST_DOWNLOAD=0` to use the old curl route.
 Civitai downloads (group 8) use Civitai's own transfer, not Hugging Face Xet.
 
-The two [importable workflows for 11 and 12](workflows/README.md) are included
+The two [importable workflows for 13 and 14](workflows/README.md) are included
 with the fetched scripts. Drag the matching JSON into ComfyUI after installing.
 
 ### Saved private Civitai key
