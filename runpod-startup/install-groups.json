@@ -46,9 +46,11 @@
     "destinations": []
   },
   "11": {
-    "name": "BigLustyDonutMix v1.2 (SDXL)",
+    "name": "PornMaster FLUX.2 Klein V4 Turbo INT8 ConvRot",
     "destinations": [
-      "checkpoints/biglustydonutmixNSFW_v12.safetensors"
+      "diffusion_models/pornmasterFlux2Klein_v4TurboInt8.safetensors",
+      "text_encoders/qwen_3_8b.safetensors",
+      "vae/flux2-vae.safetensors"
     ]
   },
   "12": {
@@ -58,11 +60,15 @@
     ]
   },
   "13": {
-    "name": "PornMaster FLUX.2 Klein V4 Turbo INT8 ConvRot",
+    "name": "BigLustyDonutMix v1.2 (SDXL)",
     "destinations": [
-      "diffusion_models/pornmasterFlux2Klein_v4TurboInt8.safetensors",
-      "text_encoders/qwen_3_8b.safetensors",
-      "vae/flux2-vae.safetensors"
+      "checkpoints/biglustydonutmixNSFW_v12.safetensors"
+    ]
+  },
+  "14": {
+    "name": "MoP Mixture of Perverts v5.1 DMD (SDXL)",
+    "destinations": [
+      "checkpoints/mopMixtureOfPerverts_v51DMD.safetensors"
     ]
   }
 }
