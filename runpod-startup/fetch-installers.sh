@@ -17,7 +17,7 @@ prepare() {
   if [[ ! -d "$release" ]]; then
     stage="$(mktemp -d "$CACHE/staging.XXXXXX")"
     git --git-dir="$CACHE/repo.git" archive "$sha" runpod-startup | tar -x -C "$stage" || return 1
-    for file in 1 2 3 4 5 6 7 8 9 10 11 12 13 install-group.sh; do
+    for file in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 install-group.sh; do
       bash -n "$stage/runpod-startup/$file" || return 1
     done
     python3 - "$stage/runpod-startup" <<'PY'
@@ -36,7 +36,7 @@ PY
 }
 prepare || echo 'GitHub fetch failed; keeping cached installers if available.'
 [[ -s "$CACHE/current/runpod-startup/manual-install.py" ]] || { echo 'Installers not yet available. Jupyter can still start; retry fetch later.'; exit 1; }
-for number in 1 2 3 4 5 6 7 8 9 10 11 12 13; do
+for number in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do
   target="/workspace/$number"
   if [[ -e "$target" ]] && ! grep -q '^# MUNG managed installer wrapper$' "$target"; then
     echo "Keeping existing unrecognized file $target; use the cached installer folder instead."
@@ -49,7 +49,7 @@ for number in 1 2 3 4 5 6 7 8 9 10 11 12 13; do
     ln -sfn "$target" "$PWD/$number"
   fi
 done
-echo 'Ready in /workspace and the current directory: use bash 1 through bash 13; bash 6 nodes; bash 7 starts both ComfyUI ports.'
+echo 'Ready in /workspace and the current directory: use bash 1 through bash 14; bash 6 nodes; bash 7 starts both ComfyUI ports.'
 
 # The normal RunPod template calls this fetcher before /start.sh.
 # When a private token is provided, start the optional BF16 download outside
