@@ -54,7 +54,7 @@
     ]
   },
   "12": {
-    "name": "MoP Mixture of Perverts v5.1 DMD (SDXL)",
+    "name": "Mixture of Perverts v5.1 DMD (SDXL) - legacy alias of 14",
     "destinations": [
       "checkpoints/mopMixtureOfPerverts_v51DMD.safetensors"
     ]
