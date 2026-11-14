@@ -111,6 +111,8 @@ MODES = [
     "Auto",
     "FLUX.2 Klein - Image Edit",
     "FLUX.2 Klein - Image Generate",
+    "FLUX 3 - Image Edit",
+    "FLUX 3 - Image Generate",
     "Qwen Rapid - Image Edit",
     "Checkpoint - Generate",
     "Checkpoint - Img2Img",
@@ -118,7 +120,7 @@ MODES = [
     "Ultimate SD Upscale",
 ]
 
-FAMILY_OVERRIDES = ["Auto", "FLUX.2 Klein", "Qwen Rapid", "SDXL / Pony", "SD1.5", "Checkpoint / Unknown"]
+FAMILY_OVERRIDES = ["Auto", "FLUX 3", "FLUX.2 Klein", "Qwen Rapid", "SDXL / Pony", "SD1.5", "Checkpoint / Unknown"]
 
 SAMPLERS = [
     "euler", "euler_ancestral", "heun", "lms", "dpm_2", "dpm_2_ancestral",
@@ -364,6 +366,8 @@ def detect_family(model_value: Optional[str], override: str = "Auto") -> str:
         return "FLUX.2 Klein"
     if "krea" in s or "kreanoct" in s:
         return "Krea 2"
+    if "flux3" in s or "flux-3" in s or "flux_3" in s:
+        return "FLUX 3"
     if override and override != "Auto":
         return override
     if "klein" in s or "flux-2" in s or "flux2" in s:
@@ -401,6 +405,8 @@ def effective_mode(mode: str, family: str, has_main: bool) -> str:
         return "Qwen Rapid - Image Edit"
     if family == "Krea 2":
         return "Krea - Image Generate"
+    if family == "FLUX 3":
+        return "FLUX 3 - Image Edit" if has_main else "FLUX 3 - Image Generate"
     # Aisha is a Flux.2 Klein 9B diffusion model and needs the separate
     # Flux text-encoder + VAE workflow, even when the mode dropdown was left
     # on an earlier checkpoint setting.
@@ -436,6 +442,9 @@ def recommendations(model_value: Optional[str], family: str, mode: str) -> Dict[
                 "9B LoRAs only on 9B models; 4B LoRAs only on 4B (stack validated before queue)."
             )
         }
+    if family == "FLUX 3":
+        return {"sampler": "euler", "scheduler": "simple", "steps": 8, "cfg": 1.0, "denoise": 1.0,
+                "text": "FLUX 3 Klein: Euler, simple, 8 steps, CFG 1.0. Uses Qwen3-VL 4B encoder and flux2-vae."}
     if family == "Qwen Rapid":
         return {
             "sampler": "euler_ancestral", "scheduler": "beta", "steps": 4, "cfg": 1.2, "denoise": 0.75,
@@ -960,6 +969,51 @@ def build_flux2_prompt(
     return p, f"{model_loader} + {clip_loader} + VAE:{vae_label}"
 
 
+
+def build_flux3_prompt(model_value, prompt_text, negative_text, clip_value, vae_value,
+                       main_name, ref_name, use_reference, steps, cfg, seed, denoise,
+                       width, height, sampler, scheduler, scale_megapixels):
+    """FLUX 3 graph from verified ComfyUI PNG metadata, with optional 2 references."""
+    model=choice_rel(model_value)
+    clip=choose_choice(SCANS["clips"], ["qwen3vl_4b_fp8_scaled", "qwen3vl_4b_int8", "qwen3vl_4b"])
+    vae=choose_choice(SCANS["vaes"], ["flux2-vae"])
+    if not clip or "qwen3vl_4b" not in choice_rel(clip).casefold():
+        raise gr.Error("FLUX 3 needs qwen3vl_4b text encoder. Put it in models/text_encoders and Refresh Models.")
+    if not vae or "flux2-vae" not in choice_rel(vae).casefold():
+        raise gr.Error("FLUX 3 needs flux2-vae.safetensors in models/vae.")
+    p={
+      "1":{"class_type":"UNETLoader","inputs":{"unet_name":model,"weight_dtype":"default"}},
+      "2":{"class_type":"CLIPLoader","inputs":{"clip_name":choice_rel(clip),"type":"flux3","device":"default"}},
+      "3":{"class_type":"VAELoader","inputs":{"vae_name":choice_rel(vae)}},
+      "4":{"class_type":"CLIPTextEncode","inputs":{"clip":["2",0],"text":prompt_text}},
+      "5":{"class_type":"CLIPTextEncode","inputs":{"clip":["2",0],"text":negative_text or ""}},
+      "7":{"class_type":"KSampler","inputs":{"seed":int(seed),"steps":int(steps),"cfg":float(cfg),
+           "sampler_name":sampler,"scheduler":scheduler,"denoise":float(denoise),
+           "model":["1",0],"positive":["4",0],"negative":["5",0],"latent_image":["6",0]}},
+      "8":{"class_type":"VAEDecode","inputs":{"samples":["7",0],"vae":["3",0]}},
+      "9":{"class_type":"SaveImage","inputs":{"images":["8",0],"filename_prefix":"mungbeans_FLUX3"}}
+    }
+    refs=[]
+    if main_name: refs.append(main_name)
+    if use_reference:
+        if not ref_name: raise gr.Error("Secondary reference is enabled but no image is supplied.")
+        refs.append(ref_name)
+    if refs:
+        if not node_available("ReferenceMultiLatent"):
+            raise gr.Error("FLUX 3 image edit requires ReferenceMultiLatent custom node.")
+        p["10"]={"class_type":"ConditioningZeroOut","inputs":{"conditioning":["4",0]}}
+        inputs={"resolution":"resize","resolution.megapixels":float(scale_megapixels),
+                "positive":["4",0],"negative":["10",0],"vae":["3",0]}
+        for i,filename in enumerate(refs):
+            nid=str(11+i)
+            p[nid]={"class_type":"LoadImage","inputs":{"image":filename}}
+            inputs[f"images.image{i}"]=[nid,0]
+        p["17"]={"class_type":"ReferenceMultiLatent","inputs":inputs}
+        p["7"]["inputs"].update({"positive":["17",0],"negative":["17",1],"latent_image":["17",2]})
+    else:
+        p["6"]={"class_type":"EmptyFlux2LatentImage","inputs":{"width":int(width),"height":int(height),"batch_size":1}}
+    return p, f"FLUX 3 + {choice_rel(clip)} + {choice_rel(vae)}"
+
 def build_krea_prompt(model_value: str, prompt_text: str, negative_text: str, width: int, height: int, steps: int, cfg: float, seed: int, sampler: str, scheduler: str):
     model = choice_rel(model_value)
     clip = choose_choice(SCANS["clips"], ["qwen3vl_4b", "qwen3vl"])
@@ -1383,7 +1437,7 @@ def generate(
         raise gr.Error(f"OpenPose ControlNet is not connected in {eff_mode}. Turn it off or choose a compatible FLUX/checkpoint mode.")
 
     # Source resolution is meaningful only for image-driven modes.
-    source_capable = eff_mode in ("FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Checkpoint - Img2Img")
+    source_capable = eff_mode in ("FLUX 3 - Image Edit", "FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Checkpoint - Img2Img")
     out_w, out_h, size_mode = resolve_size(main, bool(use_source and source_capable), preserve_aspect, width, height)
 
     if seed is None or int(seed) < 0:
@@ -1405,7 +1459,15 @@ def generate(
         ) or clip_value
 
     progress(0.15, desc=f"Building {eff_mode} pipeline…")
-    if eff_mode == "FLUX.2 Klein - Image Edit":
+    if eff_mode in ("FLUX 3 - Image Edit", "FLUX 3 - Image Generate"):
+        if eff_mode.endswith("Image Edit") and not main_name:
+            raise gr.Error("FLUX 3 Image Edit requires a Main Image.")
+        api_prompt, loader_desc = build_flux3_prompt(
+            model_value, prompt_text, negative_text, actual_clip, vae_value,
+            main_name if eff_mode.endswith("Image Edit") else None,
+            ref_name, bool(use_reference and eff_mode.endswith("Image Edit")),
+            steps, cfg, real_seed, denoise, out_w, out_h, sampler, scheduler, scale_megapixels)
+    elif eff_mode == "FLUX.2 Klein - Image Edit":
         api_prompt, loader_desc = build_flux2_prompt(
             model_value, actual_clip, vae_value, prompt_text, negative_text,
             main_name, ref_name, use_reference, steps, cfg, real_seed, denoise,
@@ -1760,6 +1822,8 @@ def on_model_change(model_value, family_override, mode, show_all_loras, text_pre
     clip = current_clip
     if family == "FLUX.2 Klein":
         clip = choose_text_encoder(scans["clips"], text_preset, current_clip, model_value)
+    elif family == "FLUX 3":
+        clip = choose_choice(scans["clips"], ["qwen3vl_4b_fp8_scaled", "qwen3vl_4b_int8", "qwen3vl_4b"])
     elif family == "Qwen Rapid":
         clip = choose_choice(scans["clips"], [
             "Qwen2.5-VL-7B-Instruct-Q4_K_M", "Qwen2.5-VL-7B", "qwen2.5-vl",
@@ -1767,7 +1831,7 @@ def on_model_change(model_value, family_override, mode, show_all_loras, text_pre
         ])
 
     # VAE
-    vae = choose_vae_for_model(scans["vaes"], model_value, family)
+    vae = choose_choice(scans["vaes"], ["flux2-vae"]) if family == "FLUX 3" else choose_vae_for_model(scans["vaes"], model_value, family)
 
     note = SETTINGS.get("model_notes", {}).get(choice_rel(model_value), "")
     return (
@@ -1809,10 +1873,10 @@ def on_text_preset(preset: str, current_clip: Optional[str]):
 
 
 def on_mode_change(mode: str):
-    is_generate = mode in ("FLUX.2 Klein - Image Generate", "Checkpoint - Generate")
+    is_generate = mode in ("FLUX 3 - Image Generate", "FLUX.2 Klein - Image Generate", "Checkpoint - Generate")
     is_upscale = mode in ("Ultimate SD Upscale", "Standard Model Upscale")
-    image_needed = mode in ("FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Checkpoint - Img2Img", "Ultimate SD Upscale", "Standard Model Upscale", "Auto")
-    reference_supported = mode in ("FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Auto")
+    image_needed = mode in ("FLUX 3 - Image Edit", "FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Checkpoint - Img2Img", "Ultimate SD Upscale", "Standard Model Upscale", "Auto")
+    reference_supported = mode in ("FLUX 3 - Image Edit", "FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Auto")
     negative_supported = True
     return (
         gr.update(visible=image_needed),
