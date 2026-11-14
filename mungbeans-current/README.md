@@ -17,3 +17,13 @@ The GUI now auto-detects Flux 3 diffusion models, uses `qwen3vl_4b_fp8_scaled.sa
 Run `START_.bat` on the original machine. Change the hard-coded Python path if moved. Local settings, private prompt history, caches, and backups are deliberately excluded from this public repository.
 
 Use this folder, `mungbeans-current`, as the canonical GitHub snapshot for future updates.
+
+## GUI Generate event verification (14 November 2026)
+
+The running mungbeans Gradio GUI at localhost:7860 was exercised through its actual `/generate` event using Gradio client inputs; this tests the same server-side callback as its Generate button (not literal browser clicking). All three returned generated image files to the GUI output:
+
+- FLUX 3 Image Generate: 512×512, four steps — **PASSED**.
+- FLUX 3 Image Edit with both Main Image and Reference Image provided, reference checkbox enabled: 512×512, four steps — **PASSED**.
+- Krea Noct V4 Q4 GGUF via Auto model detection: 512×512, four steps — **PASSED**.
+
+No further GUI-source changes were required after those end-to-end event tests.
