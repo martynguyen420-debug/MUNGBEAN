@@ -1020,8 +1020,9 @@ def build_krea_prompt(model_value: str, prompt_text: str, negative_text: str, wi
     vae = choose_choice(SCANS["vaes"], ["qwen_image_vae"])
     if not clip or not vae:
         raise gr.Error("Krea requires qwen3vl_4b text encoder and qwen_image_vae.")
+    model_node, _, model_loader = load_diffusion_model(model_value)
     p = {
-        "1": {"class_type": "UnetLoaderGGUF", "inputs": {"unet_name": model}},
+        "1": model_node,
         "2": {"class_type": "CLIPLoader", "inputs": {"clip_name": choice_rel(clip), "type": "krea2", "device": "default"}},
         "3": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt_text, "clip": ["2", 0]}},
         "4": {"class_type": "CLIPTextEncode", "inputs": {"text": negative_text or "", "clip": ["2", 0]}},
@@ -1031,7 +1032,7 @@ def build_krea_prompt(model_value: str, prompt_text: str, negative_text: str, wi
         "8": {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["7", 0]}},
         "9": {"class_type": "SaveImage", "inputs": {"images": ["8", 0], "filename_prefix": "KreaMung"}},
     }
-    return p, f"Krea2 GGUF + {choice_rel(clip)} + {choice_rel(vae)}"
+    return p, f"Krea2 {model_loader} + {choice_rel(clip)} + {choice_rel(vae)}"
 
 
 def build_qwen_prompt(
