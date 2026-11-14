@@ -27,3 +27,7 @@ The running mungbeans Gradio GUI at localhost:7860 was exercised through its act
 - Krea Noct V4 Q4 GGUF via Auto model detection: 512×512, four steps — **PASSED**.
 
 No further GUI-source changes were required after those end-to-end event tests.
+
+## Krea safetensors loader fix (14 November 2026)
+
+`build_krea_prompt()` now chooses `UNETLoader` for `.safetensors` and `UnetLoaderGGUF` for `.gguf` rather than forcing every Krea model through GGUF. **Pornmaster_krea2_Turbo_int4_convrot_v4.safetensors** passed a live test through mungbeans' `/generate` event at 512×512, 4 steps, Euler, CFG 1.0, with an image returned to Gradio. KreaNoct Q4 GGUF's loader selection was checked and preserved.
