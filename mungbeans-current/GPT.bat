@@ -8,6 +8,6 @@ if not exist "%PY%" (
  pause
  exit /b 1
 )
-"%PY%" -s "%~dp0BEAVIS_FIXED.py"
+"%PY%" -s "%~dp0Universal ComfyUI GUI.py"
 if errorlevel 1 pause
 
