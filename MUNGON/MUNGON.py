@@ -1,5 +1,5 @@
 """
-Universal ComfyUI GUI Ã¢â‚¬â€ Local Edition
+Universal ComfyUI GUI ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Local Edition
 
 Designed for the user's Windows ComfyUI setup.
 
@@ -92,19 +92,19 @@ MODEL_EXTS = (".safetensors", ".gguf", ".sft", ".ckpt", ".pt", ".pth")
 
 RES_PRESETS = {
     "Custom": None,
-    "512 Ãƒâ€” 512": (512, 512),
-    "768 Ãƒâ€” 768": (768, 768),
-    "1024 Ãƒâ€” 1024": (1024, 1024),
-    "1280 Ãƒâ€” 704 (Qwen)": (1280, 704),
-    "1280 Ãƒâ€” 720 (HD)": (1280, 720),
-    "1920 Ãƒâ€” 1080 (FHD)": (1920, 1080),
+    "512 ÃƒÆ’Ã¢â‚¬â€ 512": (512, 512),
+    "768 ÃƒÆ’Ã¢â‚¬â€ 768": (768, 768),
+    "1024 ÃƒÆ’Ã¢â‚¬â€ 1024": (1024, 1024),
+    "1280 ÃƒÆ’Ã¢â‚¬â€ 704 (Qwen)": (1280, 704),
+    "1280 ÃƒÆ’Ã¢â‚¬â€ 720 (HD)": (1280, 720),
+    "1920 x 1080 (FHD)": (1920, 1080),
     "2560 x 1440 (QHD)": (2560, 1440),
     "1440 x 2560 (Portrait)": (1440, 2560),
     "2048 x 2048": (2048, 2048),
     "3840 x 2160 (4K)": (3840, 2160),
     "2160 x 3840 (Portrait 4K)": (2160, 3840),
-    "832 Ãƒâ€” 1216 (Portrait)": (832, 1216),
-    "1216 Ãƒâ€” 832 (Landscape)": (1216, 832),
+    "832 ÃƒÆ’Ã¢â‚¬â€ 1216 (Portrait)": (832, 1216),
+    "1216 ÃƒÆ’Ã¢â‚¬â€ 832 (Landscape)": (1216, 832),
 }
 
 MODES = [
@@ -115,6 +115,8 @@ MODES = [
     "FLUX 3 - Image Generate",
     "Qwen Rapid - Image Edit",
     "Qwen Rapid - Image Generate",
+    "Krea - Image Edit",
+    "Krea - Image Generate",
     "Checkpoint - Generate",
     "Checkpoint - Img2Img",
     "Standard Model Upscale",
@@ -183,21 +185,9 @@ def save_settings_dict(data: Dict[str, Any]) -> None:
         _comfy_log.append(f"Could not save settings: {e}")
 
 
-def startup_connection(settings: Dict[str, Any]) -> Tuple[str, str]:
-    return "http://127.0.0.1:8188", "local"
-
-# legacy implementation retained below for reference
-
-    # Pod addresses can belong to a stopped/replaced pod. Never restore a saved
-    # remote address as an active connection; require this session's explicit URL.
-    if str(settings.get("model_source", "local")) == "remote":
-        return "", "remote"
-    return "http://127.0.0.1:8188", "local"
-
-
 SETTINGS = load_settings()
-COMFY_URL, MODEL_SOURCE = startup_connection(SETTINGS)
-_runpod_needs_connection = MODEL_SOURCE == "remote" and not COMFY_URL
+COMFY_URL = "http://127.0.0.1:8188"
+MODEL_SOURCE = "local"
 _prompt_history = deque(SETTINGS.get("prompt_history", []), maxlen=5)
 
 
@@ -280,65 +270,16 @@ def scan_all_models() -> Dict[str, List[Tuple[str, str]]]:
 
 
 def _remote_dropdown_values(node_name: str, input_name: str) -> List[str]:
-    """Return a ComfyUI node dropdown's values without needing shell access to the Pod."""
-    info = get_object_info()
+    """Read available models from the fixed local ComfyUI API only."""
     try:
-        raw = info[node_name]["input"]["required"][input_name][0]
-        return [str(x) for x in raw] if isinstance(raw, list) else []
-    except (KeyError, IndexError, TypeError):
+        data = requests.get("http://127.0.0.1:8188/object_info", timeout=4).json()
+        names = data.get(node_name, {}).get("input", {}).get("required", {}).get(input_name, [[]])[0]
+        return names if isinstance(names, list) else []
+    except Exception:
         return []
 
-
-def scan_remote_models() -> Dict[str, List[Tuple[str, str]]]:
-    """Scan models exposed by the connected remote ComfyUI API.
-
-    This uses ComfyUI's /object_info dropdown lists, so it works through a
-    RunPod proxy without SSH or filesystem access.
-    """
-    buckets: Dict[str, List[Tuple[str, str]]] = {
-        "models": [], "clips": [], "vaes": [], "loras": [], "upscalers": [], "controlnets": []
-    }
-    seen = {key: set() for key in buckets}
-
-    def add(bucket: str, category: str, rel: str) -> None:
-        key = (category, rel.casefold())
-        if not rel or key in seen[bucket]:
-            return
-        seen[bucket].add(key)
-        buckets[bucket].append((Path(rel).name, _encode_choice(category, rel, 0)))
-
-    for rel in _remote_dropdown_values("CheckpointLoaderSimple", "ckpt_name"):
-        add("models", "checkpoints", rel)
-    for node in ("UNETLoader", "UnetLoaderGGUF"):
-        for rel in _remote_dropdown_values(node, "unet_name"):
-            low = rel.casefold()
-            category = "unet" if low.endswith(".gguf") or "qwen" in low else "diffusion_models"
-            add("models", category, rel)
-    for node in ("CLIPLoader", "CLIPLoaderGGUF"):
-        for rel in _remote_dropdown_values(node, "clip_name"):
-            if "mmproj" not in low:
-                add("clips", "text_encoders", rel)
-    for rel in _remote_dropdown_values("VAELoader", "vae_name"):
-        add("vaes", "vae", rel)
-    for rel in _remote_dropdown_values("LoraLoader", "lora_name"):
-        add("loras", "loras", rel)
-    for rel in _remote_dropdown_values("UpscaleModelLoader", "model_name"):
-        add("upscalers", "upscale_models", rel)
-    for node in ("ControlNetLoader", "ControlNetLoaderAdvanced"):
-        for rel in _remote_dropdown_values(node, "control_net_name"):
-            add("controlnets", "controlnet", rel)
-    for bucket in buckets.values():
-        bucket.sort(key=lambda pair: pair[0].casefold())
-    return buckets
-
-
 def current_scans() -> Dict[str, List[Tuple[str, str]]]:
-    # Prefer the local ComfyUI API, but fall back to configured roots while it starts.
-     if MODEL_SOURCE == "local":
-         return scan_all_models()
-     remote = scan_remote_models()
-     return remote if any(remote.values()) else scan_all_models()
-
+    return scan_all_models()
 
 def choice_rel(value: Optional[str]) -> str:
     return _decode_choice(value)[1]
@@ -351,9 +292,14 @@ def choice_category(value: Optional[str]) -> str:
 def choose_choice(choices: List[Tuple[str, str]], needles: List[str]) -> Optional[str]:
     for needle in needles:
         for label, value in choices:
+            if "mmproj" in label.casefold():
+                continue
             if needle.casefold() in label.casefold():
                 return value
-    return choices[0][1] if choices else None
+    for label, value in choices:
+        if "mmproj" not in label.casefold():
+            return value
+    return None
 
 
 # ============================================================================
@@ -407,45 +353,48 @@ def is_model_only_flux_file(model_value: Optional[str]) -> bool:
 
 
 def effective_mode(mode: str, family: str, has_main: bool) -> str:
-    # A Qwen Rapid GGUF is a separate UNET pipeline, never a checkpoint.
-    # Keep a stale/manual checkpoint selection from routing it into the wrong loader.
+    """Source image takes priority over stale manual generate/edit selections.
+
+    Explicit upscale operations are not generation and remain available.
+    """
+    if mode in ("Standard Model Upscale", "Ultimate SD Upscale"):
+        return mode
     if family == "Qwen Rapid":
-        return "Qwen Rapid - Image Edit"
+        return "Qwen Rapid - Image Edit" if has_main else "Qwen Rapid - Image Generate"
     if family == "Krea 2":
-        return "Krea - Image Generate"
+        return "Krea - Image Edit" if has_main else "Krea - Image Generate"
     if family == "FLUX 3":
         return "FLUX 3 - Image Edit" if has_main else "FLUX 3 - Image Generate"
-    # Aisha is a Flux.2 Klein 9B diffusion model and needs the separate
-    # Flux text-encoder + VAE workflow, even when the mode dropdown was left
-    # on an earlier checkpoint setting.
-    if family == "FLUX.2 Klein" and mode in ("Checkpoint - Generate", "Checkpoint - Img2Img"):
-        return "FLUX.2 Klein - Image Edit" if has_main else "FLUX.2 Klein - Image Generate"
-    if mode != "Auto":
-        return mode
     if family == "FLUX.2 Klein":
         return "FLUX.2 Klein - Image Edit" if has_main else "FLUX.2 Klein - Image Generate"
-    return "Checkpoint - Generate"
+    return "Checkpoint - Img2Img" if has_main else "Checkpoint - Generate"
 
 
 def recommendations(model_value: Optional[str], family: str, mode: str) -> Dict[str, Any]:
     name = choice_rel(model_value)
     low = name.casefold()
+    if family == "Krea 2":
+        # Known 8-step edit merge; other Krea2 weights use a conservative low-step starting profile.
+        krea_steps = 8 if "snofs" in low and "edit" in low else 12
+        return {"sampler": "euler", "scheduler": "simple", "steps": krea_steps,
+                "cfg": 1.0, "denoise": 1.0,
+                "text": f"KREA 2 {name}: low-step starting profile, {krea_steps} steps, Euler, Simple, CFG 1.0."}
     if family == "FLUX.2 Klein":
         is_9b = is_klein_9b(model_value)
         is_aisha = "aisha" in low
-        steps = 5 if is_9b or is_aisha else (6 if "base" not in low else 12)
-        cfg = 1.0 if is_9b or is_aisha else 1.1
+        steps = 12 if is_aisha else (4 if is_9b else (6 if "base" not in low else 12))
+        cfg = 1.1 if is_aisha else (1.0 if is_9b else 1.1)
         return {
             "sampler": "euler",
             "scheduler": "normal",
             "steps": steps,
             "cfg": cfg,
-            "denoise": 0.75 if "Edit" in mode else 1.0,
+            "denoise": 1.0,
             "text": (
                 f"Model: {name or '(not selected)'}\n"
-                f"Family: FLUX.2 Klein{' Ã‚Â· 9B' if is_9b else ''}{' Ã‚Â· Aisha' if is_aisha else ''}\n"
-                f"Starting point: Euler Ã¢â‚¬Â¢ CFG {cfg} Ã¢â‚¬Â¢ {steps} steps.\n"
-                "Edit denoise: try 0.65Ã¢â‚¬â€œ0.85; Generate denoise: 1.0.\n"
+                f"Family: FLUX.2 Klein{' Ãƒâ€šÃ‚Â· 9B' if is_9b else ''}{' Ãƒâ€šÃ‚Â· Aisha' if is_aisha else ''}\n"
+                f"Starting point: Euler ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ CFG {cfg} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ {steps} steps.\n"
+                "Edit denoise: try 0.65ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“0.85; Generate denoise: 1.0.\n"
                 "Auto-selects flux2-vae + matching Qwen text encoder.\n"
                 "9B LoRAs only on 9B models; 4B LoRAs only on 4B (stack validated before queue)."
             )
@@ -455,33 +404,33 @@ def recommendations(model_value: Optional[str], family: str, mode: str) -> Dict[
                 "text": "FLUX 3 Klein: Euler, simple, 8 steps, CFG 1.0. Uses Qwen3-VL 4B encoder and flux2-vae."}
     if family == "Qwen Rapid":
         return {
-            "sampler": "euler_ancestral", "scheduler": "beta", "steps": 4, "cfg": 1.2, "denoise": 0.75,
+            "sampler": "euler_ancestral", "scheduler": "beta", "steps": 4, "cfg": 1.2, "denoise": 1.0,
             "text": (
                 f"Model: {name or '(not selected)'}\nFamily: Qwen Rapid / Phr00t\n"
-                "Starting point: Euler Ancestral Ã¢â‚¬Â¢ Beta Ã¢â‚¬Â¢ 4 steps Ã¢â‚¬Â¢ CFG 1.2.\n"
+                "Starting point: Euler Ancestral ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Beta ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ 4 steps ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ CFG 1.2.\n"
                 "Use a reference image for edit mode. Auto-picks Qwen VL encoder when present."
             )
         }
     if family == "SDXL / Pony":
         return {
-            "sampler": "dpmpp_sde", "scheduler": "karras", "steps": 30, "cfg": 8.3, "denoise": 1.0,
+            "sampler": "dpmpp_sde", "scheduler": "karras", "steps": 20, "cfg": 7.0, "denoise": 1.0,
             "text": (
                 f"Model: {name or '(not selected)'}\nFamily: SDXL / Pony\n"
-                "Your supplied Pony workflow uses DPM++ SDE Ã¢â‚¬Â¢ Karras Ã¢â‚¬Â¢ 30 steps Ã¢â‚¬Â¢ CFG 8.3.\n"
+                "Your supplied Pony workflow uses DPM++ SDE ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Karras ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ 30 steps ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ CFG 8.3.\n"
                 "Treat that as a starting profile; individual Pony/SDXL checkpoints may prefer different CFG."
             )
         }
     if family == "SD1.5":
         return {
-            "sampler": "dpmpp_2m", "scheduler": "karras", "steps": 25, "cfg": 7.0, "denoise": 1.0,
+            "sampler": "dpmpp_2m", "scheduler": "karras", "steps": 18, "cfg": 7.0, "denoise": 1.0,
             "text": (
                 f"Model: {name or '(not selected)'}\nFamily: SD1.5\n"
-                "General starting profile: DPM++ 2M Ã¢â‚¬Â¢ Karras Ã¢â‚¬Â¢ 25 steps Ã¢â‚¬Â¢ CFG 7.\n"
+                "General starting profile: DPM++ 2M ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Karras ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ 25 steps ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ CFG 7.\n"
                 "For img2img, lower denoise preserves more of the source."
             )
         }
     return {
-        "sampler": "euler", "scheduler": "normal", "steps": 25, "cfg": 7.0, "denoise": 1.0,
+        "sampler": "euler", "scheduler": "normal", "steps": 20, "cfg": 7.0, "denoise": 1.0,
         "text": f"Model: {name or '(not selected)'}\nFamily: {family}\nUse the family override if auto-detection is wrong."
     }
 
@@ -515,9 +464,9 @@ def choose_text_encoder(
     """Pick the best text encoder for the selected model.
 
     Priority for Klein:
-      - 9B model Ã¢â€ â€™ prefer qwen_3_8b / 8b flux2 encoders when present
-      - 4B model Ã¢â€ â€™ prefer qwen_3_4b / 4b encoders
-      - Uncensored preset Ã¢â€ â€™ abl/uncensored GGUF variants
+      - 9B model ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ prefer qwen_3_8b / 8b flux2 encoders when present
+      - 4B model ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ prefer qwen_3_4b / 4b encoders
+      - Uncensored preset ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ abl/uncensored GGUF variants
     """
     if preset == "Custom":
         return current
@@ -740,9 +689,9 @@ def resolve_size(main: Optional[Image.Image], use_source: bool, preserve_aspect:
 def load_diffusion_model(model_value: str) -> Tuple[Dict[str, Any], List[Any], str]:
     """Return node, model reference, and human loader description.
 
-    - GGUF Ã¢â€ â€™ UnetLoaderGGUF
-    - Checkpoint (incl. big Aisha) Ã¢â€ â€™ CheckpointLoaderSimple (MODEL+CLIP+VAE)
-    - Otherwise Ã¢â€ â€™ UNETLoader
+    - GGUF ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ UnetLoaderGGUF
+    - Checkpoint (incl. big Aisha) ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ CheckpointLoaderSimple (MODEL+CLIP+VAE)
+    - Otherwise ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ UNETLoader
     """
     cat, rel, _ = _decode_choice(model_value)
     low = rel.casefold()
@@ -1022,7 +971,7 @@ def build_flux3_prompt(model_value, prompt_text, negative_text, clip_value, vae_
         p["6"]={"class_type":"EmptyFlux2LatentImage","inputs":{"width":int(width),"height":int(height),"batch_size":1}}
     return p, f"FLUX 3 + {choice_rel(clip)} + {choice_rel(vae)}"
 
-def build_krea_prompt(model_value: str, prompt_text: str, negative_text: str, width: int, height: int, steps: int, cfg: float, seed: int, sampler: str, scheduler: str):
+def build_krea_prompt(model_value: str, prompt_text: str, negative_text: str, width: int, height: int, steps: int, cfg: float, seed: int, sampler: str, scheduler: str, main_name=None, denoise=1.0):
     model = choice_rel(model_value)
     clip = choose_choice(SCANS["clips"], ["qwen3vl_4b", "qwen3vl"])
     vae = choose_choice(SCANS["vaes"], ["qwen_image_vae"])
@@ -1040,7 +989,19 @@ def build_krea_prompt(model_value: str, prompt_text: str, negative_text: str, wi
         "8": {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["7", 0]}},
         "9": {"class_type": "SaveImage", "inputs": {"images": ["8", 0], "filename_prefix": "KreaMung"}},
     }
-    return p, f"Krea2 {model_loader} + {choice_rel(clip)} + {choice_rel(vae)}"
+    if main_name:
+        # SNOFS Krea2 Edit is trained on full-noise target + two image-grounding paths.
+        # A conventional VAE img2img latent alone does NOT implement this edit model.
+        for required in ("CCTechKrea2IdentityEditSourcePatch", "CCTechKrea2IdentityEditGroundedEncode"):
+            if not node_available(required):
+                raise gr.Error(f"Krea 2 Edit requires {required}. Install/enable the Krea2 Edit nodes in ComfyUI.")
+        p["10"] = {"class_type": "LoadImage", "inputs": {"image": main_name}}
+        p["11"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["10", 0], "vae": ["7", 0]}}
+        p["12"] = {"class_type": "CCTechKrea2IdentityEditSourcePatch", "inputs": {"model": ["1", 0], "source_latent": ["11", 0], "vae": ["7", 0], "source_image": ["10", 0], "target_latent": ["5", 0], "fit_mode": "fit", "ref_boost": 1.0}}
+        p["13"] = {"class_type": "CCTechKrea2IdentityEditGroundedEncode", "inputs": {"clip": ["2", 0], "prompt": prompt_text, "image": ["10", 0], "grounding_px": 768}}
+        p["14"] = {"class_type": "CCTechKrea2IdentityEditGroundedEncode", "inputs": {"clip": ["2", 0], "prompt": negative_text or "", "image": ["10", 0], "grounding_px": 768}}
+        p["6"]["inputs"].update({"model": ["12", 0], "positive": ["13", 0], "negative": ["14", 0], "denoise": 1.0})
+    return p, f"Krea2 {'img2img' if main_name else 'generate'} {model_loader} + {choice_rel(clip)} + {choice_rel(vae)}"
 
 
 def build_qwen_prompt(
@@ -1068,7 +1029,10 @@ def build_qwen_prompt(
     model_ref = maybe_model_only_lora(p, model_ref, use_lora, lora_value, lora_strength, "90")
     model_ref = maybe_model_only_lora(p, model_ref, use_lora2, lora2_value, lora2_strength, "91")
     model_ref = maybe_model_only_lora(p, model_ref, use_lora3, lora3_value, lora3_strength, "92")
-    p["4"] = {"class_type": "LoadImage", "inputs": {"image": main_name}}
+    if main_name:
+        p["4"] = {"class_type": "LoadImage", "inputs": {"image": main_name}}
+    else:
+        p["4"] = {"class_type": "EmptyImage", "inputs": {"width": int(width), "height": int(height), "batch_size": 1, "color": 0}}
     if not node_available("TextEncodeQwenImageEditPlus"):
         raise gr.Error("TextEncodeQwenImageEditPlus is not installed in ComfyUI.")
     enc_inputs: Dict[str, Any] = {"clip": clip_ref, "vae": vae_ref, "image1": ["4", 0], "prompt": prompt_text, "text": prompt_text}
@@ -1235,7 +1199,7 @@ def build_standard_upscale_prompt(
         })},
     }
     add_save(p, ["4", 0], "99", "StandardModelUpscale")
-    return p, f"{up_rel} Ã¢â€ â€™ exact {float(upscale_by):.2f}Ãƒâ€” ({target_w}Ãƒâ€”{target_h})"
+    return p, f"{up_rel} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ exact {float(upscale_by):.2f}ÃƒÆ’Ã¢â‚¬â€ ({target_w}ÃƒÆ’Ã¢â‚¬â€{target_h})"
 
 
 # ============================================================================
@@ -1398,7 +1362,7 @@ def wait_for_result(prompt_id: str, progress: gr.Progress, timeout_seconds: int 
                     r.raise_for_status()
                     return Image.open(io.BytesIO(r.content)).copy(), item
         elapsed = int(time.time() - start)
-        progress(min(0.95, 0.40 + elapsed / max(1, timeout_seconds) * 0.55), desc=f"GeneratingÃ¢â‚¬Â¦ {elapsed}s")
+        progress(min(0.95, 0.40 + elapsed / max(1, timeout_seconds) * 0.55), desc=f"GeneratingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ {elapsed}s")
     raise gr.Error("Timed out waiting for ComfyUI.")
 
 
@@ -1446,7 +1410,7 @@ def generate(
         raise gr.Error(f"OpenPose ControlNet is not connected in {eff_mode}. Turn it off or choose a compatible FLUX/checkpoint mode.")
 
     # Source resolution is meaningful only for image-driven modes.
-    source_capable = eff_mode in ("FLUX 3 - Image Edit", "FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Checkpoint - Img2Img")
+    source_capable = eff_mode in ("FLUX 3 - Image Edit", "FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Krea - Image Edit", "Checkpoint - Img2Img")
     out_w, out_h, size_mode = resolve_size(main, bool(use_source and source_capable), preserve_aspect, width, height)
 
     if seed is None or int(seed) < 0:
@@ -1454,7 +1418,7 @@ def generate(
     else:
         real_seed = int(seed)
 
-    progress(0.05, desc="Uploading imagesÃ¢â‚¬Â¦")
+    progress(0.05, desc="Uploading imagesÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
     main_name = upload_image(main, "universal_main.png") if main is not None else None
     ref_name = upload_image(ref, "universal_reference.png") if (use_reference and ref is not None) else None
     pose_name = upload_image(pose, "universal_openpose.png") if (use_controlnet and pose is not None) else None
@@ -1467,7 +1431,7 @@ def generate(
             scans["clips"], text_encoder_preset, clip_value, model_value
         ) or clip_value
 
-    progress(0.15, desc=f"Building {eff_mode} pipelineÃ¢â‚¬Â¦")
+    progress(0.15, desc=f"Building {eff_mode} pipelineÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
     if eff_mode in ("FLUX 3 - Image Edit", "FLUX 3 - Image Generate"):
         if eff_mode.endswith("Image Edit") and not main_name:
             raise gr.Error("FLUX 3 Image Edit requires a Main Image.")
@@ -1502,8 +1466,8 @@ def generate(
             steps, cfg, real_seed, denoise, out_w, out_h, sampler, scheduler,
             use_lora, lora_value, lora_strength,
             use_lora2, lora2_value, lora2_strength, use_lora3, lora3_value, lora3_strength,
-            use_lora2, lora2_value, lora2_strength, use_lora3, lora3_value, lora3_strength,
         )
+    elif eff_mode == "Qwen Rapid - Image Generate":
         api_prompt, loader_desc = build_qwen_prompt(
             model_value, actual_clip, vae_value, prompt_text, negative_text, None, None, False,
             steps, cfg, real_seed, 1.0, out_w, out_h, sampler, scheduler,
@@ -1544,9 +1508,14 @@ def generate(
             use_lora2, lora2_value, lora2_strength, use_lora3, lora3_value, lora3_strength,
             upscale_by,
         )
-    elif eff_mode == "Krea - Image Generate":
+    elif eff_mode in ("Krea - Image Edit", "Krea - Image Generate"):
+        if eff_mode == "Krea - Image Edit" and not main_name:
+            raise gr.Error("Krea Image Edit requires a Main Image.")
         api_prompt, loader_desc = build_krea_prompt(
-            model_value, prompt_text, negative_text, out_w, out_h, steps, cfg, real_seed, sampler, scheduler
+            model_value, prompt_text, negative_text, out_w, out_h, steps, cfg,
+            real_seed, sampler, scheduler,
+            main_name=main_name if eff_mode == "Krea - Image Edit" else None,
+            denoise=denoise if eff_mode == "Krea - Image Edit" else 1.0,
         )
     elif eff_mode == "Checkpoint - Generate":
         api_prompt, loader_desc = build_checkpoint_prompt(
@@ -1557,7 +1526,7 @@ def generate(
             pose_name, use_controlnet, controlnet_value, controlnet_strength, controlnet_start, controlnet_end,
         )
 
-    progress(0.30, desc="QueueingÃ¢â‚¬Â¦")
+    progress(0.30, desc="QueueingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
     r = requests.post(f"{COMFY_URL}/prompt", json={"prompt": api_prompt}, timeout=30)
     if not r.ok:
         raise gr.Error(f"ComfyUI rejected the workflow:\n{r.text}")
@@ -1578,8 +1547,8 @@ def generate(
         save_settings_dict(SETTINGS)
 
     info = (
-        f"Mode: {eff_mode} | Family: {family} | Seed: {real_seed} | Output: {result.width}Ãƒâ€”{result.height} "
-        f"| Requested: {out_w}Ãƒâ€”{out_h} ({size_mode}) | Loader: {loader_desc}"
+        f"Mode: {eff_mode} | Family: {family} | Seed: {real_seed} | Output: {result.width}ÃƒÆ’Ã¢â‚¬â€{result.height} "
+        f"| Requested: {out_w}ÃƒÆ’Ã¢â‚¬â€{out_h} ({size_mode}) | Loader: {loader_desc}"
     )
     if use_lora and lora_value:
         info += f" | LoRA: {choice_rel(lora_value)} @ {float(lora_strength):.2f}"
@@ -1724,7 +1693,7 @@ def restart_comfy(*args) -> str:
             )
         return start_comfy(*args)
     try:
-        _comfy_log.append("Stopping GUI-owned ComfyUI processÃ¢â‚¬Â¦")
+        _comfy_log.append("Stopping GUI-owned ComfyUI processÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
         _owned_comfy_process.terminate()
         try:
             _owned_comfy_process.wait(timeout=15)
@@ -1757,35 +1726,8 @@ def status_text() -> str:
         return "ComfyUI not connected - paste the current ComfyUI URL and click Connect & Scan Models."
     if comfy_alive(1):
         owned = _owned_comfy_process is not None and _owned_comfy_process.poll() is None
-        return f"Ã°Å¸Å¸Â¢ ComfyUI ONLINE Ã¢â‚¬â€ {COMFY_URL}" + (f" Ã¢â‚¬â€ GUI-owned PID {_owned_comfy_process.pid}" if owned else " Ã¢â‚¬â€ external process")
-    return f"Ã°Å¸â€Â´ ComfyUI OFFLINE Ã¢â‚¬â€ {COMFY_URL}"
-
-
-def connect_runpod_and_scan(endpoint: str, family_override: str, model_value: Optional[str], show_all_loras: bool):
-    """Switch this GUI to a remote ComfyUI endpoint (Vast.ai, RunPod, or another exposed URL) and scan its models."""
-    global COMFY_URL, MODEL_SOURCE, _object_info_cache
-    endpoint = (endpoint or "").strip().rstrip("/")
-    if endpoint and not endpoint.startswith(("http://", "https://")):
-        endpoint = "https://" + endpoint
-    if not endpoint:
-        raise gr.Error("Enter the remote ComfyUI address for port 8188.")
-    try:
-        test = requests.get(f"{endpoint}/object_info", timeout=15)
-        test.raise_for_status()
-        payload = test.json()
-        if not isinstance(payload, dict) or not payload:
-            raise RuntimeError("ComfyUI returned empty object_info")
-    except Exception as e:
-        raise gr.Error(f"ComfyUI connection failed: {endpoint} Ã¢â‚¬â€ {e}")
-    # Only replace the active connection and remembered URL after validation.
-    COMFY_URL = endpoint
-    MODEL_SOURCE = "remote"
-    _object_info_cache = payload
-    SETTINGS["comfy_url"] = COMFY_URL
-    SETTINGS["model_source"] = MODEL_SOURCE
-    save_settings_dict(SETTINGS)
-    updates = refresh_models_ui(family_override, model_value, show_all_loras)
-    return (*updates, status_text())
+        return f"ÃƒÂ°Ã…Â¸Ã…Â¸Ã‚Â¢ ComfyUI ONLINE ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â {COMFY_URL}" + (f" ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â GUI-owned PID {_owned_comfy_process.pid}" if owned else " ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â external process")
+    return f"ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ‚Â´ ComfyUI OFFLINE ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â {COMFY_URL}"
 
 
 def log_text() -> str:
@@ -1822,7 +1764,7 @@ def refresh_models_ui(family_override: str, model_value: Optional[str], show_all
         gr.update(choices=loras, value=""),
         gr.update(choices=scans["upscalers"]),
         gr.update(choices=scans["controlnets"]),
-        f"Scanned Ã¢â‚¬â€ Models: {len(scans['models'])} | Encoders: {len(scans['clips'])} | VAEs: {len(scans['vaes'])} | LoRAs: {len(scans['loras'])} | Upscalers: {len(scans['upscalers'])}",
+        f"Scanned ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Models: {len(scans['models'])} | Encoders: {len(scans['clips'])} | VAEs: {len(scans['vaes'])} | LoRAs: {len(scans['loras'])} | Upscalers: {len(scans['upscalers'])}",
     )
 
 
@@ -1859,6 +1801,7 @@ def on_model_change(model_value, family_override, mode, show_all_loras, text_pre
         gr.update(value=clip),
         gr.update(value=vae),
         note,
+        rec["steps"], rec["cfg"], rec["sampler"], rec["scheduler"], rec["denoise"],
     )
 
 
@@ -1935,7 +1878,7 @@ def use_prompt_history(value: Optional[str]):
 # ============================================================================
 
 SCANS = current_scans()
-# Prefer 9B Klein Ã¢â€ â€™ big Aisha Ã¢â€ â€™ Phr00t/Qwen Rapid Ã¢â€ â€™ anything Klein Ã¢â€ â€™ fallback
+# Prefer 9B Klein ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ big Aisha ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Phr00t/Qwen Rapid ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ anything Klein ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ fallback
 DEFAULT_MODEL = choose_choice(SCANS["models"], [
     "flux-2-klein-9b-fp8", "flux-2-klein-9b", "klein-9b", "9b-fp8",
     "aishaNSFWFlux2Klein_betaV87", "aishansfwflux2klein", "aisha",
@@ -1955,7 +1898,7 @@ DEFAULT_LORAS = compatible_lora_choices(SCANS["loras"], DEFAULT_FAMILY, False)
 # UI
 # ============================================================================
 
-with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
+with gr.Blocks(title="MUNGON | Local ComfyUI") as demo:
 
     with gr.Row(equal_height=True, elem_id="one-row-toolbar", elem_classes=["compact-model-bar"]):
         model_dd = gr.Dropdown(choices=SCANS["models"], value=DEFAULT_MODEL, label="Model", scale=4, min_width=220, container=False)
@@ -1963,7 +1906,6 @@ with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
         generate_top = gr.Button("Generate", variant="primary", size="sm", scale=1)
         stop_top = gr.Button("Stop", variant="stop", size="sm", scale=1)
         status_toggle = gr.Button("Status", size="sm", scale=1)
-        runpod_toggle = gr.Button("Remote disabled", size="sm", scale=1, visible=False)
         queue_status = gr.Textbox(value="Queue: checking...", label="", interactive=False, container=False, scale=2, min_width=160, elem_id="queue-status")
 
     queue_timer = gr.Timer(value=3.0)
@@ -1973,22 +1915,11 @@ with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
             refresh_status_btn = gr.Button("Refresh Status", scale=1)
             cancel_btn = gr.Button("Stop / Interrupt", variant="stop", scale=1)
 
-    with gr.Group(visible=False) as runpod_panel:
-        gr.Markdown("Paste your current remote **ComfyUI URL** (Vast.ai, RunPod, or another exposed ComfyUI endpoint), then connect.")
-        with gr.Row():
-            remote_url = gr.Textbox(
-            value="" if ("127.0.0.1" in COMFY_URL or "localhost" in COMFY_URL) else COMFY_URL,
-            label="Remote ComfyUI URL",
-            placeholder="https://your-comfyui-endpoint",
-            scale=4
-        )
-            connect_runpod_btn = gr.Button("Connect & Scan Models", variant="primary", scale=1)
-
     with gr.Tabs(elem_id="main-tabs"):
         with gr.Tab("Generate / Edit"):
             with gr.Row():
-                with gr.Column(scale=1, elem_classes=["beavis-resize"]):
-                    with gr.Accordion("Manual settings Ã¢â‚¬â€ mode, loaders and sampling", open=True, visible=False) as manual_models_group:
+                with gr.Column(scale=1, elem_classes=["mungon-resize"]):
+                    with gr.Accordion("Manual settings - mode, loaders and sampling", open=True, visible=False) as manual_models_group:
                         mode = gr.Dropdown(MODES, value=SETTINGS.get("last_mode", "Auto"), label="Mode")
                         family_override = gr.Dropdown(FAMILY_OVERRIDES, value=SETTINGS.get("last_family_override", "Auto"), label="Model Family Override")
                         detected_family = gr.Textbox(value=DEFAULT_FAMILY, label="Detected Family", interactive=False)
@@ -2005,7 +1936,6 @@ with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
                         )
 
                         with gr.Row():
-                            steps = gr.Slider(1, 50, value=6, step=1, label="Steps")
                             cfg = gr.Slider(0.5, 12.0, value=1.1, step=0.1, label="CFG")
                         with gr.Row():
                             sampler = gr.Dropdown(SAMPLERS, value="euler", label="Sampler")
@@ -2013,21 +1943,21 @@ with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
                         with gr.Row():
                             seed = gr.Number(value=-1, precision=0, label="Seed (-1 = random)")
                             seed_lock = gr.Checkbox(False, label="Lock seed after generation")
-                            denoise = gr.Slider(0.05, 1.0, value=0.75, step=0.05, label="Denoise / Strength")
+                            denoise = gr.Slider(0.05, 1.0, value=1.0, step=0.05, label="Denoise / Strength")
 
 
                     main_group = gr.Group(visible=True)
                     with main_group:
-                        main_img = gr.Image(label="Main Image", type="pil", height=300)
-                        reference_group = gr.Group(visible=True)
-                        with reference_group:
-                            reference_img = gr.Image(label="Reference Image (optional)", type="pil", height=220)
-                            use_reference = gr.Checkbox(False, label="Use Reference Image")
-                            gr.Markdown(
-                                "**Reference prompt tip:** say exactly what to take from the reference Ã¢â‚¬â€ clothing, hairstyle, color, lighting, style, etc."
-                            )
+                        with gr.Row(equal_height=True):
+                            with gr.Column(scale=1, min_width=180):
+                                main_img = gr.Image(label="Main Image", type="pil", height=240)
+                            with gr.Column(scale=1, min_width=180):
+                                reference_group = gr.Group(visible=True)
+                                with reference_group:
+                                    reference_img = gr.Image(label="Reference Image (optional)", type="pil", height=240)
+                                    use_reference = gr.Checkbox(False, label="Use Reference Image")
 
-                    # Pose / OpenPose / ControlNet UI intentionally removed from the RunPod BEAVIS build.
+                    # Pose / OpenPose / ControlNet UI intentionally removed from the MUNGON build.
                     # Hidden compatibility values keep the existing generation pipeline stable without exposing pose controls.
                     pose_img = gr.State(None)
                     use_controlnet = gr.State(False)
@@ -2036,9 +1966,14 @@ with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
                     controlnet_start = gr.State(0.0)
                     controlnet_end = gr.State(1.0)
 
-                    prompt = gr.Textbox(label="Prompt", lines=5, placeholder="Describe what to generate or changeÃ¢â‚¬Â¦")
-                    prompt_history = gr.Dropdown(choices=list(_prompt_history), label="Last 5 Prompts", value=None)
-                    negative_prompt = gr.Textbox(label="Negative Prompt", lines=2, placeholder="Things you want to avoid...")
+                    prompt = gr.Textbox(label="Prompt", lines=5, placeholder="Describe what to generate or change...")
+                    with gr.Row(equal_height=True, elem_id="mung-prompt-tools"):
+                        prompt_history = gr.Dropdown(choices=list(_prompt_history), label="Last 5 Prompts", value=None, scale=3, min_width=140)
+                        negative_prompt = gr.Dropdown(
+                            choices=["", "blurry, low quality, artifacts, watermark, text", "bad anatomy, extra limbs, distorted proportions", "oversaturated, blurry, duplicate, out of frame"],
+                            value="", label="Negative Prompt", allow_custom_value=True, interactive=True, scale=4, min_width=180,
+                        )
+                        steps = gr.Number(value=recommendations(DEFAULT_MODEL, DEFAULT_FAMILY, effective_mode("Auto", DEFAULT_FAMILY, False))["steps"], minimum=1, maximum=50, precision=0, label="Steps", scale=1, min_width=85)
                     upscale_group = gr.Group(visible=False)
                     with upscale_group:
                         gr.Markdown("### Upscale")
@@ -2049,7 +1984,7 @@ with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
                         refresh_models_btn = gr.Button("Refresh Models")
                         run_btn = gr.Button("Generate", variant="primary", size="lg")
 
-                with gr.Column(scale=1, elem_classes=["beavis-resize"]):
+                with gr.Column(scale=1, elem_classes=["mungon-resize"]):
                     output_img = gr.Image(label="Result", height=600)
                     with gr.Group(visible=False):
                         info = gr.Textbox(label="Generation Info", interactive=False, lines=3)
@@ -2084,7 +2019,7 @@ with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
                     use_source = gr.Checkbox(False, label="Use Source Image Resolution")
                     preserve_aspect = gr.Checkbox(False, label="Preserve Source Aspect Ratio when using manual resolution")
                     with gr.Group(visible=False) as manual_res_group:
-                        res_preset = gr.Dropdown(list(RES_PRESETS.keys()), value="1024 Ãƒâ€” 1024", label="Preset")
+                        res_preset = gr.Dropdown(list(RES_PRESETS.keys()), value="1024 ÃƒÆ’Ã¢â‚¬â€ 1024", label="Preset")
                         with gr.Row():
                             width = gr.Number(value=1024, precision=0, minimum=16, label="Width")
                             height = gr.Number(value=1024, precision=0, minimum=16, label="Height")
@@ -2126,7 +2061,7 @@ with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
                 auto_fp8 = gr.Checkbox(SETTINGS.get("auto_fp8", True), label="Auto FP8 (only when filename says FP8)")
                 arg_fp8_unet = gr.Checkbox(SETTINGS.get("fp8_unet", False), label="--fp8_e4m3fn-unet (manual)")
                 arg_fp8_text = gr.Checkbox(SETTINGS.get("fp8_text", False), label="--fp8_e4m3fn-text-enc (manual)")
-            extra_args = gr.Textbox(value=SETTINGS.get("extra_args", ""), label="Extra Arguments", placeholder="Any extra ComfyUI flagsÃ¢â‚¬Â¦")
+            extra_args = gr.Textbox(value=SETTINGS.get("extra_args", ""), label="Extra Arguments", placeholder="Any extra ComfyUI flagsÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
             launch_preview = gr.Textbox(label="Launch Command Preview", interactive=False, lines=3)
 
             with gr.Row():
@@ -2141,12 +2076,10 @@ with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
 
     # ---------------- Events ----------------
     status_open = gr.State(False)
-    runpod_open = gr.State(_runpod_needs_connection)
     def toggle_panel(opened):
         opened = not opened
         return opened, gr.update(visible=opened)
     status_toggle.click(toggle_panel, inputs=status_open, outputs=[status_open, status_panel])
-    runpod_toggle.click(toggle_panel, inputs=runpod_open, outputs=[runpod_open, runpod_panel])
     manual_models.change(lambda checked: gr.update(visible=checked), inputs=manual_models, outputs=manual_models_group)
     refresh_status_btn.click(status_text, outputs=comfy_status)
     queue_timer.tick(queue_status_text, outputs=queue_status, show_progress="hidden")
@@ -2167,17 +2100,17 @@ with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
     model_dd.change(
         on_model_change,
         inputs=[model_dd, family_override, mode, show_all_loras, text_encoder_preset, clip_dd],
-        outputs=[detected_family, recommendation_box, lora_dd, lora2_dd, lora3_dd, clip_dd, vae_dd, my_note],
+        outputs=[detected_family, recommendation_box, lora_dd, lora2_dd, lora3_dd, clip_dd, vae_dd, my_note, steps, cfg, sampler, scheduler, denoise],
     )
     family_override.change(
         on_model_change,
         inputs=[model_dd, family_override, mode, show_all_loras, text_encoder_preset, clip_dd],
-        outputs=[detected_family, recommendation_box, lora_dd, lora2_dd, lora3_dd, clip_dd, vae_dd, my_note],
+        outputs=[detected_family, recommendation_box, lora_dd, lora2_dd, lora3_dd, clip_dd, vae_dd, my_note, steps, cfg, sampler, scheduler, denoise],
     )
     show_all_loras.change(
         on_model_change,
         inputs=[model_dd, family_override, mode, show_all_loras, text_encoder_preset, clip_dd],
-        outputs=[detected_family, recommendation_box, lora_dd, lora2_dd, lora3_dd, clip_dd, vae_dd, my_note],
+        outputs=[detected_family, recommendation_box, lora_dd, lora2_dd, lora3_dd, clip_dd, vae_dd, my_note, steps, cfg, sampler, scheduler, denoise],
     )
 
     apply_rec_btn.click(
@@ -2192,12 +2125,6 @@ with gr.Blocks(title="BEAVIS Ã¢â‚¬â€ Local ComfyUI") as demo:
         inputs=[family_override, model_dd, show_all_loras],
         outputs=[model_dd, clip_dd, vae_dd, lora_dd, lora2_dd, lora3_dd, upscale_dd, controlnet_dd, info],
     )
-    connect_runpod_btn.click(
-        connect_runpod_and_scan,
-        inputs=[remote_url, family_override, model_dd, show_all_loras],
-        outputs=[model_dd, clip_dd, vae_dd, lora_dd, lora2_dd, lora3_dd, upscale_dd, controlnet_dd, info, comfy_status],
-    )
-
     run_btn.click(
         generate,
         inputs=[
@@ -2287,7 +2214,7 @@ if __name__ == "__main__":
         server_port=gui_port,
         inbrowser=(os.name == "nt"),
         theme=gr.themes.Soft(),
-        css=".beavis-resize {resize:none!important;overflow:visible!important;} #one-row-toolbar {gap:6px!important;align-items:center!important;margin:0!important;padding:0 0 0 175px!important;flex-wrap:nowrap!important;} #manual-toggle {flex:0 0 108px!important;min-width:108px!important;max-width:108px!important;overflow:visible!important;background:#353f50!important;border:1px solid #596579!important;border-radius:8px!important;padding:0 10px!important;min-height:38px!important;display:flex!important;align-items:center!important;justify-content:center!important;} #manual-toggle label {white-space:nowrap!important;overflow:visible!important;font-weight:600!important;cursor:pointer!important;} #manual-toggle input {accent-color:#6554ed!important;} #one-row-toolbar > div {min-width:0!important;margin:0!important;} #one-row-toolbar .gradio-accordion {flex:0 0 100px!important;} #one-row-toolbar .gradio-accordion > button {white-space:nowrap!important;} #main-tabs .tab-nav {position:relative!important;margin-top:-52px!important;margin-bottom:18px!important;width:max-content!important;z-index:5!important;} #main-tabs {margin-top:0!important;} textarea, input {font-family: Inter, Arial, sans-serif!important;} textarea::placeholder, input::placeholder {color:#aeb8cc!important; opacity:1!important;} ",
+        css=(APP_DIR / "mungon.css").read_text(encoding="utf-8"),
     )
 
 

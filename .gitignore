@@ -3,3 +3,10 @@ __pycache__/
 *.zip
 .DS_Store
 node_modules/
+
+# MUNGON local-only data, never publish prompt history
+**/universal_comfy_gui_runpod_settings.json
+**/*.before-*
+**/*.font-backup-*
+**/*.layout-backup-*
+**/*.rejected-layout

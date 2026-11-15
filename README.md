@@ -1,3 +1,9 @@
+# MUNGON - Windows local ComfyUI GUI
+
+The current Windows GUI is in [MUNGON](MUNGON/). Launch MUNGON.bat in that folder. The previous mungbeans-current GUI files are retired from the repository; existing RunPod scripts and workflows remain available below.
+
+---
+
 > Current procedure: [CURRENT_SETUP.md](CURRENT_SETUP.md). Project SOP: [SOP.md](SOP.md). Latest attempt and last verified working release are tracked separately.
 
 # GENESIS Imagine
@@ -6,11 +12,11 @@ A focused Grok Imagine-style front end for a RunPod ComfyUI installation. The ap
 
 ## Routes
 
-- `klein_9b` — FLUX.2 Klein 9B image generation
-- `aisha_9b` — Aisha 9B realism
-- `qwen_edit` — Qwen reference-image editing
-- `wan_fast` — Phr00t WAN 2.2 rapid video
-- `wan_quality` — WAN 2.2 Remix quality video
+- `klein_9b` â€” FLUX.2 Klein 9B image generation
+- `aisha_9b` â€” Aisha 9B realism
+- `qwen_edit` â€” Qwen reference-image editing
+- `wan_fast` â€” Phr00t WAN 2.2 rapid video
+- `wan_quality` â€” WAN 2.2 Remix quality video
 
 ## Start on RunPod
 

@@ -2,10 +2,6 @@
 setlocal
 cd /d "%~dp0"
 set "PY=F:\AI\ComfyUI_windows_portable_b580\python_embeded\python.exe"
-if not exist "%PY%" (
- echo Python not found at %PY%
- pause
- exit /b 1
-)
-"%PY%" -s "%~dp0Universal ComfyUI GUI.py"
+if not exist "%PY%" (echo Python not found: %PY% & pause & exit /b 1)
+"%PY%" -s "%~dp0MUNGON.py"
 if errorlevel 1 pause
