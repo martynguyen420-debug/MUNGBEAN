@@ -34,6 +34,7 @@ Notes:
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import os
@@ -45,8 +46,10 @@ from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import aiohttp
 import gradio as gr
 import requests
+import uuid
 from PIL import Image
 import socket
 
@@ -56,12 +59,12 @@ import socket
 
 APP_DIR = Path(__file__).resolve().parent
 SETTINGS_FILE = APP_DIR / "universal_comfy_gui_runpod_settings.json"
-COMFY_URL = "http://127.0.0.1:8188"
+COMFY_URL = "http://127.0.0.1:8191"
 
 # Default portable install inferred from the user's machine screenshots/setup.
-DEFAULT_COMFY_ROOT = Path(r"F:\AI\ComfyUI_windows_portable_b580")
+DEFAULT_COMFY_ROOT = Path(r"F:\AI\OmniXPU-B60-Test")
 DEFAULT_COMFY_MAIN = DEFAULT_COMFY_ROOT / "ComfyUI" / "main.py"
-DEFAULT_COMFY_PYTHON = DEFAULT_COMFY_ROOT / "python_embeded" / "python.exe"
+DEFAULT_COMFY_PYTHON = DEFAULT_COMFY_ROOT / ".venv" / "Scripts" / "python.exe"
 DEFAULT_COMFY_OUTPUT = DEFAULT_COMFY_ROOT / "ComfyUI" / "output"
 
 MODEL_ROOTS = [
@@ -73,6 +76,7 @@ MODEL_ROOTS = [
     Path(r"D:\AI-Models"),
     Path(r"D:\AI_Models"),
     Path(r"D:\models"),
+    DEFAULT_COMFY_ROOT / "ComfyUI" / "models",
 ]
 
 # Extra loose LoRA locations found on the user's machine.
@@ -115,6 +119,12 @@ MODES = [
     "FLUX 3 - Image Generate",
     "Qwen Rapid - Image Edit",
     "Qwen Rapid - Image Generate",
+    "Qwen Image 2.1 Turbo - Image Generate",
+    "Qwen Image 2.1 Turbo - Image Edit",
+    "WAN 2.2 Rapid AIO - Text to Image",
+    "WAN 2.2 Rapid AIO - Image Edit",
+    "MOSS - Image Generate",
+    "MOSS - Image Edit",
     "Krea - Image Edit",
     "Krea - Image Generate",
     "Checkpoint - Generate",
@@ -123,7 +133,7 @@ MODES = [
     "Ultimate SD Upscale",
 ]
 
-FAMILY_OVERRIDES = ["Auto", "FLUX 3", "FLUX.2 Klein", "Qwen Rapid", "SDXL / Pony", "SD1.5", "Checkpoint / Unknown"]
+FAMILY_OVERRIDES = ["Auto", "FLUX 3", "FLUX.2 Klein", "Qwen Rapid", "Qwen Image 2.1 Turbo", "WAN 2.2 Rapid AIO", "MOSS", "SDXL / Pony", "SD1.5", "Checkpoint / Unknown"]
 
 SAMPLERS = [
     "euler", "euler_ancestral", "heun", "lms", "dpm_2", "dpm_2_ancestral",
@@ -137,6 +147,118 @@ _cancel_requested = False
 _owned_comfy_process: Optional[subprocess.Popen] = None
 _comfy_log: deque[str] = deque(maxlen=250)
 _object_info_cache: Optional[Dict[str, Any]] = None
+_live_console_lock = threading.RLock()
+_live_console_lines: deque[str] = deque(maxlen=9)
+_live_console_status = "Ready. Waiting for Generate."
+_live_console_started_at: Optional[float] = None
+
+
+def live_console_text() -> str:
+    with _live_console_lock:
+        lines = list(_live_console_lines)
+        status = _live_console_status
+        started = _live_console_started_at
+    if started is not None and "s elapsed" not in status:
+        status = f"{status} | {int(time.time() - started)}s elapsed"
+    lines.append(status)
+    return "\n".join(lines)
+
+
+def live_console_begin(message: str) -> None:
+    global _live_console_started_at, _live_console_status
+    with _live_console_lock:
+        _live_console_lines.clear()
+        _live_console_started_at = time.time()
+        _live_console_status = message
+        _live_console_lines.append(time.strftime("%H:%M:%S") + " | " + message)
+
+
+def live_console_log(message: str) -> None:
+    global _live_console_status
+    with _live_console_lock:
+        _live_console_lines.append(time.strftime("%H:%M:%S") + " | " + message)
+        _live_console_status = message
+
+
+def live_console_set_status(message: str) -> None:
+    global _live_console_status
+    with _live_console_lock:
+        _live_console_status = message
+
+
+def live_console_finish(message: str) -> None:
+    global _live_console_started_at, _live_console_status
+    with _live_console_lock:
+        elapsed = int(time.time() - _live_console_started_at) if _live_console_started_at else 0
+        _live_console_lines.append(time.strftime("%H:%M:%S") + f" | {message} ({elapsed}s)")
+        _live_console_started_at = None
+        _live_console_status = message
+
+
+def _comfy_progress_listener(client_id: str, prompt_id: str, node_map: Dict[str, str], stop_event: threading.Event, ready_event: threading.Event) -> None:
+    async def listen() -> None:
+        ws_url = COMFY_URL.replace("https://", "wss://", 1).replace("http://", "ws://", 1)
+        ws_url += f"/ws?clientId={client_id}"
+        timeout = aiohttp.ClientTimeout(total=None, sock_connect=5)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.ws_connect(ws_url, heartbeat=20, timeout=10) as ws:
+                ready_event.set()
+                live_console_log("Live connection to ComfyUI established")
+                while not stop_event.is_set():
+                    try:
+                        message = await ws.receive(timeout=1.0)
+                    except asyncio.TimeoutError:
+                        continue
+                    if message.type == aiohttp.WSMsgType.TEXT:
+                        try:
+                            event = json.loads(message.data)
+                        except (TypeError, ValueError):
+                            continue
+                        event_type = event.get("type", "")
+                        data = event.get("data") or {}
+                        event_prompt = data.get("prompt_id") if isinstance(data, dict) else None
+                        if event_prompt and prompt_id and event_prompt != prompt_id:
+                            continue
+                        if event_type == "execution_start":
+                            live_console_log("ComfyUI started the workflow")
+                        elif event_type == "executing" and isinstance(data, dict):
+                            node_id = data.get("node")
+                            if node_id is None:
+                                live_console_log("ComfyUI finished the node graph; waiting for saved output")
+                            else:
+                                label = node_map.get(str(node_id), str(node_id))
+                                live_console_log(f"ComfyUI running {label} (node {node_id})")
+                        elif event_type == "progress" and isinstance(data, dict):
+                            value = data.get("value")
+                            maximum = data.get("max")
+                            node_id = data.get("node")
+                            label = node_map.get(str(node_id), "sampling") if node_id is not None else "sampling"
+                            if value is not None and maximum is not None:
+                                live_console_log(f"Step {value}/{maximum} | {label}")
+                        elif event_type == "execution_cached" and isinstance(data, dict):
+                            cached = data.get("nodes") or []
+                            if cached:
+                                live_console_log(f"ComfyUI reused {len(cached)} cached node(s)")
+                        elif event_type == "execution_error" and isinstance(data, dict):
+                            detail = data.get("exception_message") or "ComfyUI reported an execution error"
+                            live_console_log("ERROR | " + str(detail).splitlines()[0])
+                        elif event_type == "execution_success":
+                            live_console_log("ComfyUI finished; retrieving output")
+                    elif message.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.ERROR):
+                        break
+    async def runner() -> None:
+        try:
+            await listen()
+        except Exception as exc:
+            live_console_log("Live step feed unavailable: " + str(exc).splitlines()[0])
+        finally:
+            ready_event.set()
+    try:
+        asyncio.run(runner())
+    except Exception as exc:
+        ready_event.set()
+        live_console_log("Live step feed unavailable: " + str(exc).splitlines()[0])
+
 
 
 # ============================================================================
@@ -153,10 +275,10 @@ def default_settings() -> Dict[str, Any]:
         "windows_standalone": True,
         "preview_none": True,
         "fast_disk": True,
-        "auto_fp8": True,
+        "auto_fp8": False,
         "fp8_unet": False,
         "fp8_text": False,
-        "extra_args": "",
+        "extra_args": "--enable-dynamic-vram --disable-assets",
         "last_mode": "Auto",
         "last_family_override": "Auto",
         "prompt_history": [],
@@ -186,7 +308,7 @@ def save_settings_dict(data: Dict[str, Any]) -> None:
 
 
 SETTINGS = load_settings()
-COMFY_URL = "http://127.0.0.1:8188"
+COMFY_URL = SETTINGS.get("comfy_url") or COMFY_URL
 MODEL_SOURCE = "local"
 _prompt_history = deque(SETTINGS.get("prompt_history", []), maxlen=5)
 
@@ -249,12 +371,42 @@ def scan_all_models() -> Dict[str, List[Tuple[str, str]]]:
         for sub, bucket in category_map.items():
             folder = root / sub
             for rel in _walk_model_folder(folder):
-                key = (sub.casefold(), Path(rel).name.casefold())
+                label = Path(rel).name
+                if sub.casefold() in ("checkpoints", "unet", "diffusion_models") and "lora" in label.casefold():
+                    continue
+                if (
+                    sub.casefold() == "diffusion_models"
+                    and label.casefold().startswith("wan2.2-rapid-mega-aio")
+                    and any(
+                        choice_category(value).casefold() == "checkpoints"
+                        and Path(_decode_choice(value)[1]).name.casefold() == label.casefold()
+                        for _existing_label, value in buckets["models"]
+                    )
+                ):
+                    continue
+                key = (sub.casefold(), label.casefold())
                 if key in seen[bucket]:
                     continue
                 seen[bucket].add(key)
                 label = Path(rel).name
                 buckets[bucket].append((label, _encode_choice(sub, rel, idx)))
+    # A few MOSS releases are duplicated under checkpoints and diffusion_models.
+    # Keep the valid diffusion-model entry only so MUNGON cannot route the copy
+    # through CheckpointLoaderSimple by accident.
+    moss_diffusion_names = {
+        Path(_decode_choice(value)[1]).name.casefold()
+        for label, value in buckets["models"]
+        if "moss" in label.casefold() and choice_category(value) in ("unet", "diffusion_models")
+    }
+    if moss_diffusion_names:
+        buckets["models"] = [
+            (label, value) for label, value in buckets["models"]
+            if not (
+                choice_category(value) == "checkpoints"
+                and Path(_decode_choice(value)[1]).name.casefold() in moss_diffusion_names
+            )
+        ]
+
     # Also scan loose LoRA folders that are not inside a standard ComfyUI model root.
     for extra_idx, folder in enumerate(EXTRA_LORA_DIRS, start=len(MODEL_ROOTS)):
         for rel in _walk_model_folder(folder):
@@ -272,7 +424,7 @@ def scan_all_models() -> Dict[str, List[Tuple[str, str]]]:
 def _remote_dropdown_values(node_name: str, input_name: str) -> List[str]:
     """Read available models from the fixed local ComfyUI API only."""
     try:
-        data = requests.get("http://127.0.0.1:8188/object_info", timeout=4).json()
+        data = requests.get(f"{COMFY_URL}/object_info", timeout=4).json()
         names = data.get(node_name, {}).get("input", {}).get("required", {}).get(input_name, [[]])[0]
         return names if isinstance(names, list) else []
     except Exception:
@@ -314,8 +466,16 @@ def detect_family(model_value: Optional[str], override: str = "Auto") -> str:
     # These two known model families must win over a stale saved family
     # dropdown.  Otherwise a Qwen GGUF can accidentally be sent through the
     # checkpoint-only path after an older GUI session.
+    if "moss" in s:
+        return "MOSS"
+    if "qwen-image-2.1-turbo" in s or "qwen_image_2.1_turbo" in s:
+        return "Qwen Image 2.1 Turbo"
     if "qwen" in s and ("rapid" in s or "phroot" in s or "phr00t" in s):
         return "Qwen Rapid"
+    if "aisha" in s and "qwen" in s and "turbo" in s:
+        return "Qwen Image 2.1 Turbo"
+    if "wan2.2" in s and "rapid" in s and "aio" in s:
+        return "WAN 2.2 Rapid AIO"
     if "aisha" in s:
         return "FLUX.2 Klein"
     if "krea" in s or "kreanoct" in s:
@@ -359,6 +519,12 @@ def effective_mode(mode: str, family: str, has_main: bool) -> str:
     """
     if mode in ("Standard Model Upscale", "Ultimate SD Upscale"):
         return mode
+    if family == "MOSS":
+        return "MOSS - Image Edit" if has_main else "MOSS - Image Generate"
+    if family == "Qwen Image 2.1 Turbo":
+        return "Qwen Image 2.1 Turbo - Image Edit" if has_main else "Qwen Image 2.1 Turbo - Image Generate"
+    if family == "WAN 2.2 Rapid AIO":
+        return "WAN 2.2 Rapid AIO - Image Edit" if has_main else "WAN 2.2 Rapid AIO - Text to Image"
     if family == "Qwen Rapid":
         return "Qwen Rapid - Image Edit" if has_main else "Qwen Rapid - Image Generate"
     if family == "Krea 2":
@@ -373,6 +539,22 @@ def effective_mode(mode: str, family: str, has_main: bool) -> str:
 def recommendations(model_value: Optional[str], family: str, mode: str) -> Dict[str, Any]:
     name = choice_rel(model_value)
     low = name.casefold()
+    if family == "MOSS":
+        is_edit = "Edit" in mode
+        is_turbo = "turbo" in low or "dmd2" in low
+        if is_turbo:
+            return {"sampler":"euler_ancestral", "scheduler":"simple", "steps":6, "cfg":1.0,
+                    "denoise":0.55 if is_edit else 1.0,
+                    "text":"Juggernaut Moss Turbo: 6 steps, Euler Ancestral, Simple, CFG 1. The DMD2 turbo weights are baked into this model; no separate LoRA is needed. Negative prompting has no effect at CFG 1."}
+        return {"sampler":"euler", "scheduler":"sgm_uniform", "steps":50, "cfg":3.0,
+                "denoise":0.55 if is_edit else 1.0,
+                "text":"MOSS Base: Euler, SGM Uniform, 50 steps, CFG 3. Img2img denoise 0.55. Requires a MOSS loader, moss_image text encoder, Flux2 VAE, and Skip Layer Guidance node."}
+    if family == "Qwen Image 2.1 Turbo":
+        return {"sampler":"euler", "scheduler":"simple", "steps":8, "cfg":1.0, "denoise":1.0,
+                "text":"Qwen Image 2.1 Turbo: 8 fixed sigma steps, Euler, CFG 1.0; dedicated sampler. Negative prompt is ignored at CFG 1.0."}
+    if family == "WAN 2.2 Rapid AIO":
+        return {"sampler":"dpmpp_sde", "scheduler":"beta", "steps":4, "cfg":1.0, "denoise":1.0,
+                "text":"WAN 2.2 Rapid AIO: 4 steps, DPM++ SDE, Beta, CFG 1. A source image creates a single edited frame; with no source, MUNGON makes a single text-conditioned frame."}
     if family == "Krea 2":
         # Known 8-step edit merge; other Krea2 weights use a conservative low-step starting profile.
         krea_steps = 8 if "snofs" in low and "edit" in low else 12
@@ -437,6 +619,8 @@ def recommendations(model_value: Optional[str], family: str, mode: str) -> Dict[
 
 def compatible_lora_choices(all_loras: List[Tuple[str, str]], family: str, show_all: bool) -> List[Tuple[str, str]]:
     none = [("None", "")]
+    if family == "MOSS":
+        return none
     if show_all or not all_loras:
         return none + all_loras
     needles: Tuple[str, ...]
@@ -470,7 +654,7 @@ def choose_text_encoder(
     """
     if preset == "Custom":
         return current
-    if preset == "Uncensored":
+    if preset == "Uncensored" and not (model_value and detect_family(model_value, "Auto") == "MOSS"):
         return choose_choice(clips, [
             "qwen3-4b-abl", "abl", "uncensored",
             "flux2-klein-4b-uncensored", "flux2-klein-9b-uncensored",
@@ -480,6 +664,14 @@ def choose_text_encoder(
         if not picked or "qwen2.5-vl" not in choice_rel(picked).casefold() or "mmproj" in choice_rel(picked).casefold():
             raise ValueError("Qwen Rapid requires a Qwen2.5-VL text encoder; none found")
         return picked
+    if model_value and detect_family(model_value, "Auto") == "MOSS":
+        model_rel = choice_rel(model_value).casefold()
+        moss_needles = (["qwen3.5-9b-q4_k_m.gguf", "qwen3.5-9b"]
+                        if model_rel.endswith(".gguf")
+                        else ["qwen3.5_9b_int8_convrot.safetensors",
+                              "qwen3.5_9b_w4a8_gptq.safetensors", "qwen3.5"])
+        return next((value for needle in moss_needles
+                     for label, value in clips if needle in label.casefold()), None)
     # Model-aware Official / Auto selection
     if model_value and is_klein_9b(model_value):
         picked = choose_choice(clips, [
@@ -502,8 +694,14 @@ def choose_vae_for_model(
     """Auto-pick VAE to match the selected model family."""
     if not vaes:
         return None
-    if family in ("FLUX.2 Klein",) or (model_value and "aisha" in choice_rel(model_value).casefold()):
+    if family == "MOSS":
+        return choose_choice(vaes, ["flux2-vae.safetensors", "flux2-vae"])
+    model_name = choice_rel(model_value).casefold() if model_value else ""
+    is_qwen_aisha_turbo = "aisha" in model_name and "qwen" in model_name and "turbo" in model_name
+    if family == "FLUX.2 Klein" or ("aisha" in model_name and not is_qwen_aisha_turbo):
         return choose_choice(vaes, ["flux2-vae", "flux2", "ae.safetensors"])
+    if family == "Qwen Image 2.1 Turbo":
+        return choose_choice(vaes, ["qwen_image_2.1_vae_bf16"])
     if family == "Qwen Rapid":
         return choose_choice(vaes, ["qwen_image_vae", "qwen", "flux2-vae", "ae"])
     if family == "SDXL / Pony":
@@ -718,7 +916,7 @@ def load_diffusion_model(model_value: str) -> Tuple[Dict[str, Any], List[Any], s
 def load_text_encoder(clip_value: str, family: str) -> Tuple[Dict[str, Any], List[Any], str]:
     rel = choice_rel(clip_value)
     low = rel.casefold()
-    clip_type = "flux3" if "qwen3vl" in choice_rel(clip_value).casefold() else ("flux2" if family == "FLUX.2 Klein" else "qwen_image")
+    clip_type = "moss_image" if family == "MOSS" else ("flux3" if "qwen3vl" in choice_rel(clip_value).casefold() else ("flux2" if family == "FLUX.2 Klein" else "qwen_image"))
     if low.endswith(".gguf"):
         if not node_available("CLIPLoaderGGUF"):
             raise gr.Error("GGUF text encoder selected but CLIPLoaderGGUF is not installed (ComfyUI-GGUF required).")
@@ -1002,6 +1200,215 @@ def build_krea_prompt(model_value: str, prompt_text: str, negative_text: str, wi
         p["14"] = {"class_type": "CCTechKrea2IdentityEditGroundedEncode", "inputs": {"clip": ["2", 0], "prompt": negative_text or "", "image": ["10", 0], "grounding_px": 768}}
         p["6"]["inputs"].update({"model": ["12", 0], "positive": ["13", 0], "negative": ["14", 0], "denoise": 1.0})
     return p, f"Krea2 {'img2img' if main_name else 'generate'} {model_loader} + {choice_rel(clip)} + {choice_rel(vae)}"
+
+
+def build_moss_prompt(model_value, clip_value, vae_value, prompt_text, negative_text,
+                      main_name, ref_name, use_reference, width, height, steps, cfg,
+                      seed, denoise, sampler, scheduler):
+    """Build the MOSS Base graph from the Library txt2img/img2img workflows."""
+    if use_reference:
+        raise gr.Error("The MOSS Base workflow supports one source image. Turn off the second reference image.")
+    info_nodes = ("SkipLayerGuidanceDiTSimple", "EmptyFlux2LatentImage", "VAEEncode", "VAEDecode")
+    for node in info_nodes:
+        if not node_available(node):
+            raise gr.Error(f"MOSS Base requires the ComfyUI node {node}.")
+
+    model_rel = choice_rel(model_value)
+    clip_rel = choice_rel(clip_value)
+    vae_rel = choice_rel(vae_value)
+    if "moss" not in model_rel.casefold():
+        raise gr.Error("Select a MOSS model file.")
+    if not clip_value or not ("qwen3.5" in clip_rel.casefold() or "qwen3_5" in clip_rel.casefold()):
+        raise gr.Error("MOSS requires its Qwen 3.5 text encoder.")
+    if not vae_value or "flux2-vae" not in vae_rel.casefold():
+        raise gr.Error("MOSS Base requires flux2-vae.safetensors.")
+
+    prompt = {}
+    model_cat = choice_category(model_value)
+    if model_rel.casefold().endswith(".gguf") and node_available("UnetLoaderGGUFDynamicVRAM"):
+        model_node = {"class_type":"UnetLoaderGGUFDynamicVRAM",
+                      "inputs":filtered_inputs("UnetLoaderGGUFDynamicVRAM", {"unet_name":model_rel})}
+        model_ref, model_loader = ["1",0], "UnetLoaderGGUFDynamicVRAM"
+    else:
+        if model_cat == "checkpoints" and not model_rel.casefold().endswith(".gguf"):
+            raise gr.Error("MOSS safetensors are separate diffusion weights. Put them in models/diffusion_models or models/unet.")
+        model_node, model_ref, model_loader = load_diffusion_model(model_value)
+    prompt["1"] = model_node
+
+    if clip_rel.casefold().endswith(".gguf"):
+        if node_available("CLIPLoaderGGUFDynamicVRAM"):
+            clip_node = {"class_type":"CLIPLoaderGGUFDynamicVRAM",
+                         "inputs":filtered_inputs("CLIPLoaderGGUFDynamicVRAM",
+                             {"clip_name":clip_rel,"type":"moss_image","device":"default"})}
+            clip_loader = "CLIPLoaderGGUFDynamicVRAM"
+        elif node_available("CLIPLoaderGGUF"):
+            clip_node = {"class_type":"CLIPLoaderGGUF",
+                         "inputs":filtered_inputs("CLIPLoaderGGUF",
+                             {"clip_name":clip_rel,"type":"moss_image","device":"default"})}
+            clip_loader = "CLIPLoaderGGUF"
+        else:
+            raise gr.Error("MOSS GGUF encoder needs ComfyUI-GGUF (CLIPLoaderGGUF).")
+    else:
+        clip_node = {"class_type":"CLIPLoader",
+                     "inputs":filtered_inputs("CLIPLoader",
+                         {"clip_name":clip_rel,"type":"moss_image","device":"default"})}
+        clip_loader = "CLIPLoader (moss_image)"
+    prompt["2"] = clip_node
+    prompt["3"] = {"class_type":"VAELoader","inputs":{"vae_name":vae_rel}}
+    prompt["4"] = {"class_type":"CLIPTextEncode","inputs":{"clip":["2",0],"text":prompt_text}}
+    prompt["5"] = {"class_type":"CLIPTextEncode","inputs":{"clip":["2",0],"text":negative_text or ""}}
+    prompt["6"] = {"class_type":"SkipLayerGuidanceDiTSimple","inputs":{
+        "model":model_ref,"double_layers":"",
+        "single_layers":"" if "turbo" in model_rel.casefold() else "22",
+        "start_percent":0.0,"end_percent":1.0}}
+    if main_name:
+        prompt["7"] = {"class_type":"LoadImage","inputs":{"image":main_name}}
+        prompt["8"] = {"class_type":"VAEEncode","inputs":{"pixels":["7",0],"vae":["3",0]}}
+        latent_ref = ["8",0]
+    else:
+        prompt["9"] = {"class_type":"EmptyFlux2LatentImage","inputs":{
+            "width":int(width),"height":int(height),"batch_size":1}}
+        latent_ref = ["9",0]
+    prompt["10"] = {"class_type":"KSampler","inputs":{
+        "seed":int(seed),"steps":int(steps),"cfg":float(cfg),"sampler_name":sampler,
+        "scheduler":scheduler,"denoise":float(denoise),"model":["6",0],
+        "positive":["4",0],"negative":["5",0],"latent_image":latent_ref}}
+    prompt["11"] = {"class_type":"VAEDecode","inputs":{"samples":["10",0],"vae":["3",0]}}
+    prompt["12"] = {"class_type":"SaveImage","inputs":{"images":["11",0],"filename_prefix":"MUNGON_MOSS"}}
+    return prompt, f"MOSS Base {model_loader} + {clip_loader} (moss_image) + {vae_rel}"
+
+
+def build_wan_aio_frame_prompt(model_value, prompt_text, negative_text, main_name,
+                                width, height, seed, steps=4, cfg=1.0,
+                                sampler="dpmpp_sde", scheduler="beta"):
+    """Build a single-frame still workflow from the WAN 2.2 Rapid Mega AIO checkpoint."""
+    model_rel = choice_rel(model_value)
+    if not model_rel.casefold().endswith(".safetensors") or "wan2.2-rapid-mega-aio" not in model_rel.casefold():
+        raise gr.Error("Select the WAN 2.2 Rapid Mega AIO safetensors checkpoint.")
+    required = ("CheckpointLoaderSimple", "CLIPTextEncode", "WanImageToVideo",
+                "WanVaceToVideo", "ModelSamplingSD3", "KSampler", "VAEDecode", "SaveImage")
+    for node in required:
+        if not node_available(node):
+            raise gr.Error(f"WAN 2.2 Rapid AIO requires {node} in ComfyUI.")
+    out_w = max(256, (int(width) // 16) * 16)
+    out_h = max(256, (int(height) // 16) * 16)
+    graph = {
+        "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": model_rel}},
+        "2": {"class_type": "ModelSamplingSD3", "inputs": {"model": ["1", 0], "shift": 8}},
+        "3": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["1", 1], "text": prompt_text}},
+        "4": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["1", 1], "text": negative_text or ""}},
+    }
+    if main_name:
+        graph["5"] = {"class_type": "LoadImage", "inputs": {"image": main_name}}
+        graph["6"] = {"class_type": "WanImageToVideo", "inputs": {
+            "positive": ["3", 0], "negative": ["4", 0], "vae": ["1", 2],
+            "width": out_w, "height": out_h, "length": 1, "batch_size": 1,
+            "start_image": ["5", 0],
+        }}
+        loader_desc = "WAN 2.2 Rapid AIO / one-frame image edit / WanImageToVideo"
+    else:
+        graph["6"] = {"class_type": "WanVaceToVideo", "inputs": {
+            "positive": ["3", 0], "negative": ["4", 0], "vae": ["1", 2],
+            "width": out_w, "height": out_h, "length": 1, "batch_size": 1,
+            "strength": 0.0,
+        }}
+        loader_desc = "WAN 2.2 Rapid AIO / one-frame text generation / VACE strength 0"
+    graph["7"] = {"class_type": "KSampler", "inputs": {
+        "model": ["2", 0], "seed": int(seed), "steps": max(4, int(steps)),
+        "cfg": float(cfg), "sampler_name": sampler, "scheduler": scheduler,
+        "positive": ["6", 0], "negative": ["6", 1], "latent_image": ["6", 2],
+        "denoise": 1.0,
+    }}
+    graph["8"] = {"class_type": "VAEDecode", "inputs": {
+        "samples": ["7", 0], "vae": ["1", 2],
+    }}
+    graph["9"] = {"class_type": "SaveImage", "inputs": {
+        "images": ["8", 0], "filename_prefix": "MUNGON_WAN22_OneFrame",
+    }}
+    return graph, loader_desc
+
+
+# Fixed Qwen Image 2.1 Turbo schedule from the published model and ComfyUI template.
+QWEN21_TURBO_SIGMAS = "1.0,0.978453,0.95418,0.926626,0.89508,0.845148,0.704534,0.414568,0.0"
+
+def build_qwen21_turbo_prompt(model_value, clip_value, vae_value, prompt_text, negative_text,
+                              main_name, ref_name, use_reference, width, height, seed,
+                              use_lora=False, lora_value=None, lora_strength=1.0,
+                              use_lora2=False, lora2_value=None, lora2_strength=1.0,
+                              use_lora3=False, lora3_value=None, lora3_strength=1.0):
+    """Build native Qwen Image 2.1 Turbo graph for safetensors or GGUF weights."""
+    model_rel = choice_rel(model_value)
+    clip_rel = choice_rel(clip_value)
+    vae_rel = choice_rel(vae_value)
+    model_low = model_rel.casefold()
+    clip_low = clip_rel.casefold()
+    is_gguf = model_low.endswith(".gguf")
+    is_aisha_qwen_turbo = "aisha" in model_low and "qwen" in model_low and "turbo" in model_low
+    is_qwen_turbo = ("qwen-image-2.1-turbo" in model_low
+                     or "qwen_image_2.1_turbo" in model_low
+                     or is_aisha_qwen_turbo)
+    if not is_qwen_turbo:
+        raise gr.Error("Select a Qwen Image 2.1 Turbo model.")
+    if "qwen_image_2.1_vae" not in vae_rel.casefold():
+        raise gr.Error("Qwen Image 2.1 Turbo requires qwen_image_2.1_vae_bf16.safetensors.")
+    if is_gguf:
+        needed = ("TextEncodeQwenImage21", "ManualSigmas", "SamplerCustom", "KSamplerSelect",
+                  "UnetLoaderGGUF", "CLIPLoaderGGUF", "EmptySD3LatentImage", "VAEDecode", "SaveImage")
+        if "qwen" not in clip_low or not clip_low.endswith(".gguf"):
+            raise gr.Error("Qwen Image 2.1 GGUF requires its matching Qwen3-VL GGUF text encoder.")
+        model_loader = "UnetLoaderGGUF"
+        clip_loader = "CLIPLoaderGGUF"
+    else:
+        needed = ("TextEncodeQwenImage21", "ManualSigmas", "SamplerCustom", "KSamplerSelect",
+                  "UNETLoader", "CLIPLoader", "EmptySD3LatentImage", "VAEDecode", "SaveImage")
+        if "qwen3vl_8b" not in clip_low or not clip_low.endswith(".safetensors"):
+            raise gr.Error("Aisha/Qwen Image 2.1 Turbo requires the Qwen3-VL 8B safetensors encoder (for example qwen3vl_8b_w4a8.safetensors).")
+        model_loader = "UNETLoader"
+        clip_loader = "CLIPLoader"
+    for node in needed:
+        if not node_available(node):
+            raise gr.Error(f"Qwen Image 2.1 Turbo requires {node} in ComfyUI.")
+
+    graph = {
+      "1": {"class_type": model_loader, "inputs": {"unet_name": model_rel}},
+      "2": {"class_type": clip_loader, "inputs": {"clip_name": clip_rel, "type": "qwen_image"}},
+      "3": {"class_type": "VAELoader", "inputs": {"vae_name": vae_rel}},
+      "4": {"class_type": "TextEncodeQwenImage21", "inputs": {
+          "clip": ["2", 0], "prompt": prompt_text, "negative_prompt": negative_text or "",
+          "resolution": 1024, "vae": ["3", 0]}},
+      "5": {"class_type": "EmptySD3LatentImage", "inputs": {
+          "width": int(width), "height": int(height), "batch_size": 1}},
+      "6": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "euler"}},
+      "7": {"class_type": "ManualSigmas", "inputs": {"sigmas": QWEN21_TURBO_SIGMAS}},
+      "8": {"class_type": "SamplerCustom", "inputs": {
+          "model": ["1", 0], "add_noise": True, "noise_seed": int(seed), "cfg": 1.0,
+          "positive": ["4", 0], "negative": ["4", 1], "sampler": ["6", 0],
+          "sigmas": ["7", 0], "latent_image": ["5", 0]}},
+      "9": {"class_type": "VAEDecode", "inputs": {"samples": ["8", 0], "vae": ["3", 0]}},
+      "10": {"class_type": "SaveImage", "inputs": {
+          "images": ["9", 0], "filename_prefix": "MUNGON_AishaQwenTurbo"}},
+    }
+    # Qwen Image 2.1 img2img supplies the source to the Qwen encoder as an image condition.
+    if main_name:
+        graph["11"] = {"class_type": "LoadImage", "inputs": {"image": main_name}}
+        graph["4"]["inputs"]["image_1"] = ["11", 0]
+    if use_reference:
+        if not ref_name:
+            raise gr.Error("Reference Image is enabled but no image is uploaded.")
+        graph["12"] = {"class_type": "LoadImage", "inputs": {"image": ref_name}}
+        graph["4"]["inputs"]["image_2" if main_name else "image_1"] = ["12", 0]
+    for enabled, value, strength, num in (
+        (use_lora, lora_value, lora_strength, "91"),
+        (use_lora2, lora2_value, lora2_strength, "92"),
+        (use_lora3, lora3_value, lora3_strength, "93"),
+    ):
+        if enabled and value:
+            graph[num] = {"class_type": "LoraLoaderModelOnly", "inputs": {
+                "model": graph["8"]["inputs"]["model"],
+                "lora_name": choice_rel(value),
+                "strength_model": float(strength)}}
+            graph["8"]["inputs"]["model"] = [num, 0]
+    return graph, f"Qwen Image 2.1 Turbo / 8 fixed Euler sigma steps / Qwen3-VL 8B / {Path(vae_rel).name}"
 
 
 def build_qwen_prompt(
@@ -1336,7 +1743,7 @@ def wan21_generate(model, image, prompt, negative, width, height, frames,
 
 # ============================================================================
 
-def wait_for_result(prompt_id: str, progress: gr.Progress, timeout_seconds: int = 600) -> Tuple[Image.Image, Dict[str, Any]]:
+def wait_for_result(prompt_id: str, progress: gr.Progress, timeout_seconds: int = 600):
     global _cancel_requested
     start = time.time()
     while time.time() - start < timeout_seconds:
@@ -1346,7 +1753,7 @@ def wait_for_result(prompt_id: str, progress: gr.Progress, timeout_seconds: int 
         try:
             hist = requests.get(f"{COMFY_URL}/history/{prompt_id}", timeout=10).json()
         except Exception:
-            continue
+            hist = {}
         if prompt_id in hist:
             item = hist[prompt_id]
             outputs = item.get("outputs", {})
@@ -1361,8 +1768,18 @@ def wait_for_result(prompt_id: str, progress: gr.Progress, timeout_seconds: int 
                     r = requests.get(f"{COMFY_URL}/view", params=params, timeout=60)
                     r.raise_for_status()
                     return Image.open(io.BytesIO(r.content)).copy(), item
+            status = item.get("status", {})
+            if status.get("status_str") == "error":
+                messages = status.get("messages", [])
+                detail = "ComfyUI execution failed"
+                for entry in messages:
+                    if isinstance(entry, (list, tuple)) and entry and entry[0] == "execution_error":
+                        detail = entry[1].get("exception_message", detail)
+                        break
+                raise gr.Error(detail)
         elapsed = int(time.time() - start)
-        progress(min(0.95, 0.40 + elapsed / max(1, timeout_seconds) * 0.55), desc=f"GeneratingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ {elapsed}s")
+        progress(min(0.95, 0.40 + elapsed / max(1, timeout_seconds) * 0.55), desc=f"Generating | {elapsed}s")
+        yield f"Waiting for ComfyUI progress | {elapsed}s elapsed"
     raise gr.Error("Timed out waiting for ComfyUI.")
 
 
@@ -1387,8 +1804,10 @@ def generate(
 ):
     global _current_prompt_id, _cancel_requested
     _cancel_requested = False
+    live_console_begin(f"Preparing {mode} | {Path(choice_rel(model_value)).name if model_value else 'model'}")
+    yield (gr.skip(), gr.skip(), gr.skip(), gr.skip(), live_console_text())
     if not comfy_alive(3):
-        raise gr.Error(f"Cannot reach local ComfyUI at {COMFY_URL}. Start the F: ComfyUI backend on port 8188.")
+        raise gr.Error(f"Cannot reach local ComfyUI at {COMFY_URL}. Start the configured local ComfyUI backend.")
     get_object_info(force=True)
 
     if not model_value and mode != "Standard Model Upscale":
@@ -1401,16 +1820,18 @@ def generate(
     pose = pilify(pose_image)
     family = detect_family(model_value, family_override)
     eff_mode = effective_mode(mode, family, main is not None)
+    if family == "MOSS" and (use_lora_manager or any((use_lora, use_lora2, use_lora3))):
+        raise gr.Error("The Library MOSS Base workflows do not include LoRA support; disable the LoRA controls for this run.")
     validate_lora_stack(model_value, family, [
         (use_lora, lora_value), (use_lora2, lora2_value), (use_lora3, lora3_value)
     ])
     if use_lora_manager and any((use_lora, use_lora2, use_lora3)):
         raise gr.Error("Choose either LoraManager unlimited stack or the standard 3-slot stack, not both.")
-    if use_controlnet and eff_mode in ("Qwen Rapid - Image Edit", "Ultimate SD Upscale", "Standard Model Upscale"):
+    if use_controlnet and eff_mode in ("MOSS - Image Generate", "MOSS - Image Edit", "Qwen Rapid - Image Edit", "Ultimate SD Upscale", "Standard Model Upscale"):
         raise gr.Error(f"OpenPose ControlNet is not connected in {eff_mode}. Turn it off or choose a compatible FLUX/checkpoint mode.")
 
     # Source resolution is meaningful only for image-driven modes.
-    source_capable = eff_mode in ("FLUX 3 - Image Edit", "FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Krea - Image Edit", "Checkpoint - Img2Img")
+    source_capable = eff_mode in ("MOSS - Image Edit", "Qwen Image 2.1 Turbo - Image Edit", "FLUX 3 - Image Edit", "FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Krea - Image Edit", "Checkpoint - Img2Img")
     out_w, out_h, size_mode = resolve_size(main, bool(use_source and source_capable), preserve_aspect, width, height)
 
     if seed is None or int(seed) < 0:
@@ -1418,6 +1839,8 @@ def generate(
     else:
         real_seed = int(seed)
 
+    live_console_set_status("Uploading source and reference images")
+    yield (gr.skip(), gr.skip(), gr.skip(), gr.skip(), live_console_text())
     progress(0.05, desc="Uploading imagesÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
     main_name = upload_image(main, "universal_main.png") if main is not None else None
     ref_name = upload_image(ref, "universal_reference.png") if (use_reference and ref is not None) else None
@@ -1431,6 +1854,8 @@ def generate(
             scans["clips"], text_encoder_preset, clip_value, model_value
         ) or clip_value
 
+    live_console_set_status(f"Building {eff_mode} pipeline")
+    yield (gr.skip(), gr.skip(), gr.skip(), gr.skip(), live_console_text())
     progress(0.15, desc=f"Building {eff_mode} pipelineÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
     if eff_mode in ("FLUX 3 - Image Edit", "FLUX 3 - Image Generate"):
         if eff_mode.endswith("Image Edit") and not main_name:
@@ -1458,6 +1883,19 @@ def generate(
             pose_name, use_controlnet, controlnet_value, controlnet_strength, controlnet_start, controlnet_end,
             scale_method, scale_megapixels, resolution_steps, flux_zero_negative, True,
         )
+    elif eff_mode in ("Qwen Image 2.1 Turbo - Image Generate", "Qwen Image 2.1 Turbo - Image Edit"):
+        api_prompt, loader_desc = build_qwen21_turbo_prompt(
+            model_value, actual_clip, vae_value, prompt_text, negative_text,
+            main_name, ref_name, use_reference, out_w, out_h, real_seed,
+            use_lora, lora_value, lora_strength, use_lora2, lora2_value, lora2_strength,
+            use_lora3, lora3_value, lora3_strength)
+    elif eff_mode in ("WAN 2.2 Rapid AIO - Text to Image", "WAN 2.2 Rapid AIO - Image Edit"):
+        if eff_mode.endswith("Image Edit") and not main_name:
+            raise gr.Error("WAN 2.2 Rapid AIO image edit requires a Main Image.")
+        api_prompt, loader_desc = build_wan_aio_frame_prompt(
+            model_value, prompt_text, negative_text,
+            main_name if eff_mode.endswith("Image Edit") else None,
+            out_w, out_h, real_seed, steps, cfg, sampler, scheduler)
     elif eff_mode == "Qwen Rapid - Image Edit":
         if not main_name:
             raise gr.Error("Qwen Rapid edit requires a Main Image.")
@@ -1474,6 +1912,14 @@ def generate(
             use_lora, lora_value, lora_strength,
             use_lora2, lora2_value, lora2_strength, use_lora3, lora3_value, lora3_strength,
         )
+    elif eff_mode in ("MOSS - Image Generate", "MOSS - Image Edit"):
+        if eff_mode == "MOSS - Image Edit" and not main_name:
+            raise gr.Error("MOSS img2img requires a Main Image.")
+        api_prompt, loader_desc = build_moss_prompt(
+            model_value, actual_clip, vae_value, prompt_text, negative_text,
+            main_name if eff_mode == "MOSS - Image Edit" else None,
+            ref_name, bool(use_reference), out_w, out_h, steps, cfg, real_seed,
+            denoise if eff_mode == "MOSS - Image Edit" else 1.0, sampler, scheduler)
     elif eff_mode == "Standard Model Upscale":
         if not main_name:
             raise gr.Error("Standard Model Upscale requires a Main Image.")
@@ -1526,15 +1972,42 @@ def generate(
             pose_name, use_controlnet, controlnet_value, controlnet_strength, controlnet_start, controlnet_end,
         )
 
-    progress(0.30, desc="QueueingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦")
-    r = requests.post(f"{COMFY_URL}/prompt", json={"prompt": api_prompt}, timeout=30)
-    if not r.ok:
-        raise gr.Error(f"ComfyUI rejected the workflow:\n{r.text}")
-    _current_prompt_id = r.json().get("prompt_id")
-    if not _current_prompt_id:
-        raise gr.Error("ComfyUI did not return a prompt_id.")
-
-    result, _hist = wait_for_result(_current_prompt_id, progress)
+    live_console_set_status(f"Pipeline ready | {loader_desc}")
+    yield (gr.skip(), gr.skip(), gr.skip(), gr.skip(), live_console_text())
+    progress(0.30, desc="Queueing in ComfyUI")
+    client_id = uuid.uuid4().hex
+    ws_stop = threading.Event()
+    ws_ready = threading.Event()
+    node_map = {str(node_id): node.get("class_type", "ComfyUI node") for node_id, node in api_prompt.items()}
+    listener = threading.Thread(
+        target=_comfy_progress_listener,
+        args=(client_id, "", node_map, ws_stop, ws_ready),
+        daemon=True,
+        name="MUNGON-ComfyUI-progress",
+    )
+    listener.start()
+    ws_ready.wait(2.0)
+    try:
+        r = requests.post(f"{COMFY_URL}/prompt", json={"prompt": api_prompt, "client_id": client_id}, timeout=30)
+        if not r.ok:
+            live_console_log("ComfyUI rejected the workflow: " + r.text[:300])
+            raise gr.Error(f"ComfyUI rejected the workflow:\n{r.text}")
+        _current_prompt_id = r.json().get("prompt_id")
+        if not _current_prompt_id:
+            raise gr.Error("ComfyUI did not return a prompt_id.")
+        live_console_log(f"Queued | Prompt {_current_prompt_id[:8]}")
+        result_stream = wait_for_result(_current_prompt_id, progress)
+        while True:
+            try:
+                status_line = next(result_stream)
+            except StopIteration as completed:
+                result, _hist = completed.value
+                break
+            live_console_set_status(status_line)
+            yield (gr.skip(), gr.skip(), gr.skip(), gr.skip(), live_console_text())
+        live_console_finish(f"Completed | {result.width} x {result.height}")
+    finally:
+        ws_stop.set()
     progress(1.0, desc="Done")
 
     if prompt_text.strip():
@@ -1560,17 +2033,19 @@ def generate(
         info += " | LoraManager: " + ", ".join(f"{name} @ {strength:.2f}" for name, strength in manager_rows)
     if use_controlnet and controlnet_value:
         info += f" | ControlNet: {choice_rel(controlnet_value)} @ {float(controlnet_strength):.2f}"
-    return result, info, gr.update(choices=list(_prompt_history), value=prompt_text.strip() if prompt_text.strip() else None), gr.update(value=real_seed) if seed_lock else gr.update()
+    yield result, info, gr.update(choices=list(_prompt_history), value=prompt_text.strip() if prompt_text.strip() else None), gr.update(value=real_seed) if seed_lock else gr.update(), live_console_text()
 
 
-def cancel_generation() -> str:
+def cancel_generation():
     global _cancel_requested
     _cancel_requested = True
     try:
         r = requests.post(f"{COMFY_URL}/interrupt", timeout=5)
-        return "Interrupt sent to ComfyUI." if r.ok else f"Interrupt returned HTTP {r.status_code}."
+        message = "Interrupt sent to ComfyUI." if r.ok else f"Interrupt returned HTTP {r.status_code}."
     except Exception as e:
-        return f"Could not interrupt ComfyUI: {e}"
+        message = f"Could not interrupt ComfyUI: {e}"
+    live_console_log(message)
+    return message, live_console_text()
 
 
 # ============================================================================
@@ -1617,6 +2092,9 @@ def compute_launch_args(
         # Basic Windows-friendly split for simple flags. Quoted complex arguments can still be added.
         import shlex
         args += shlex.split(extra_args, posix=False)
+    if "--port" not in args and not any(a.startswith("--port=") for a in args):
+        from urllib.parse import urlsplit
+        args += ["--port", str(urlsplit(COMFY_URL).port or 8191)]
     return args
 
 
@@ -1661,9 +2139,13 @@ def start_comfy(
     try:
         _comfy_log.clear()
         _comfy_log.append("START: " + subprocess.list2cmdline(cmd))
+        env = os.environ.copy()
+        if "omnixpu" in str(main).casefold():
+            env.update({"OMNI_ATTN_BACKEND": "torch", "OMNIXPU_ENABLE": "1", "COMFY_SAFETENSORS_PREAD": "1"})
         _owned_comfy_process = subprocess.Popen(
             cmd,
-            cwd=str(main.parent.parent),
+            cwd=str(main.parent),
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -1782,11 +2264,19 @@ def on_model_change(model_value, family_override, mode, show_all_loras, text_pre
         clip = choose_text_encoder(scans["clips"], text_preset, current_clip, model_value)
     elif family == "FLUX 3":
         clip = choose_choice(scans["clips"], ["qwen3vl_4b_fp8_scaled", "qwen3vl_4b_int8", "qwen3vl_4b"])
+    elif family == "Qwen Image 2.1 Turbo":
+        model_low = choice_rel(model_value).casefold() if model_value else ""
+        if model_low.endswith(".gguf"):
+            clip = choose_choice(scans["clips"], ["Qwen-Image-2.1-Turbo-Uncensored-AD-Q6_K.gguf"])
+        else:
+            clip = choose_choice(scans["clips"], ["qwen3vl_8b_w4a8", "qwen3vl_8b_int8_convrot", "qwen3vl_8b_bf16"])
     elif family == "Qwen Rapid":
         clip = choose_choice(scans["clips"], [
             "Qwen2.5-VL-7B-Instruct-Q4_K_M", "Qwen2.5-VL-7B", "qwen2.5-vl",
             "qwen_image", "qwen",
         ])
+    elif family == "MOSS":
+        clip = choose_text_encoder(scans["clips"], text_preset, current_clip, model_value)
 
     # VAE
     vae = choose_choice(scans["vaes"], ["flux2-vae"]) if family == "FLUX 3" else choose_vae_for_model(scans["vaes"], model_value, family)
@@ -1945,6 +2435,12 @@ with gr.Blocks(title="MUNGON | Local ComfyUI") as demo:
                             seed_lock = gr.Checkbox(False, label="Lock seed after generation")
                             denoise = gr.Slider(0.05, 1.0, value=1.0, step=0.05, label="Denoise / Strength")
 
+                        gr.Markdown("### Advanced Reference Scaling")
+                        scale_method = gr.Dropdown(SCALE_METHODS, value="lanczos", label="Scaling Method")
+                        scale_megapixels = gr.Slider(0.25, 4.0, value=2.0, step=0.25, label="Reference Megapixels")
+                        resolution_steps = gr.Slider(1, 64, value=1, step=1, label="Resolution Steps")
+                        gr.Markdown("Lanczos is the default for photographic references. Resolution Steps affects resize granularity, not diffusion quality.")
+
 
                     main_group = gr.Group(visible=True)
                     with main_group:
@@ -1983,6 +2479,15 @@ with gr.Blocks(title="MUNGON | Local ComfyUI") as demo:
                     with gr.Row():
                         refresh_models_btn = gr.Button("Refresh Models")
                         run_btn = gr.Button("Generate", variant="primary", size="lg")
+
+                    live_console = gr.Textbox(
+                        value="Ready. Waiting for Generate.",
+                        label="ComfyUI Live Console",
+                        lines=7,
+                        max_lines=9,
+                        interactive=False,
+                        elem_id="live-console",
+                    )
 
                 with gr.Column(scale=1, elem_classes=["mungon-resize"]):
                     output_img = gr.Image(label="Result", height=600)
@@ -2024,11 +2529,6 @@ with gr.Blocks(title="MUNGON | Local ComfyUI") as demo:
                             width = gr.Number(value=1024, precision=0, minimum=16, label="Width")
                             height = gr.Number(value=1024, precision=0, minimum=16, label="Height")
 
-                    with gr.Accordion("Advanced Reference Scaling", open=False):
-                        scale_method = gr.Dropdown(SCALE_METHODS, value="lanczos", label="Scaling Method")
-                        scale_megapixels = gr.Slider(0.25, 4.0, value=2.0, step=0.25, label="Reference Megapixels")
-                        resolution_steps = gr.Slider(1, 64, value=1, step=1, label="Resolution Steps")
-                        gr.Markdown("Lanczos is the default here for photographic references. Resolution Steps affects resize granularity, not diffusion quality.")
 
 
 
@@ -2084,7 +2584,7 @@ with gr.Blocks(title="MUNGON | Local ComfyUI") as demo:
     refresh_status_btn.click(status_text, outputs=comfy_status)
     queue_timer.tick(queue_status_text, outputs=queue_status, show_progress="hidden")
     demo.load(queue_status_text, outputs=queue_status)
-    cancel_btn.click(cancel_generation, outputs=info)
+    cancel_btn.click(cancel_generation, outputs=[info, live_console])
 
     use_lora.change(on_lora_toggle, inputs=use_lora, outputs=[lora_dd, lora_strength])
     use_lora2.change(on_lora_toggle, inputs=use_lora2, outputs=[lora2_dd, lora2_strength])
@@ -2144,7 +2644,8 @@ with gr.Blocks(title="MUNGON | Local ComfyUI") as demo:
             scale_method, scale_megapixels, resolution_steps,
             upscale_by, seed_lock,
         ],
-        outputs=[output_img, info, prompt_history, seed],
+        outputs=[output_img, info, prompt_history, seed, live_console],
+        show_progress="hidden",
     )
 
     # Startup command preview updates.

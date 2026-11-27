@@ -27,3 +27,11 @@
 #mung-prompt-tools > * {min-width: 85px !important;}
 .mungon-resize {min-width: 0 !important;}
 @media(max-width: 820px) {#one-row-toolbar {flex-wrap: wrap !important;} .mungon-resize {min-width: 320px !important;}}
+
+#live-console {margin-top: 8px !important;}
+#live-console textarea {
+  min-height: 150px !important; max-height: 190px !important; overflow-y: auto !important;
+  background: #101522 !important; color: #cbd5e1 !important;
+  font-family: Consolas, "Cascadia Mono", monospace !important; font-size: 12px !important;
+  line-height: 1.35 !important;
+}
