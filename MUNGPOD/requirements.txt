@@ -1,0 +1,4 @@
+aiohttp>=3.9,<4
+gradio>=5,<7
+Pillow>=10,<13
+requests>=2.31,<3

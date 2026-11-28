@@ -1,0 +1,37 @@
+/* MUNGON - unified typography, responsive Gradio layout (no absolute-position hacks). */
+:root, html, body, gradio-app, .gradio-container {
+  font-family: "Segoe UI", Arial, sans-serif !important;
+}
+.gradio-container :is(button, input, textarea, select, label, option, summary, .tab-nav, .tabitem, [role="combobox"], [role="option"], [role="listbox"], .gradio-markdown) {
+  font-family: "Segoe UI", Arial, sans-serif !important;
+  font-size: 15px !important;
+  line-height: 1.4 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+.gradio-container :is(input, textarea)::placeholder {color: #aeb8cc !important;opacity: 1 !important;}
+.gradio-container :is(code, pre, kbd, samp) {font-family: Consolas, monospace !important;}
+.gradio-container {max-width: 1900px !important; padding: 12px 16px !important;margin: 0 auto !important;}
+#one-row-toolbar {
+  display: flex !important;position: static !important; flex-wrap: wrap !important;
+  gap: 10px !important;align-items: center !important;
+  margin: 0 0 10px !important;padding: 8px !important;
+  border-radius: 8px !important;
+}
+#one-row-toolbar > * {min-width: 0 !important;margin: 0 !important;}
+#one-row-toolbar button {min-height: 38px !important;}
+#manual-toggle {min-width: 108px !important;}
+#main-tabs, #main-tabs .tab-nav {position: static !important;margin-top: 0 !important;}
+#main-tabs .tab-nav {margin-bottom: 12px !important;}
+#mung-prompt-tools {display: flex !important; gap: 8px !important;align-items: flex-end !important;flex-wrap: wrap !important;}
+#mung-prompt-tools > * {min-width: 85px !important;}
+.mungon-resize {min-width: 0 !important;}
+@media(max-width: 820px) {#one-row-toolbar {flex-wrap: wrap !important;} .mungon-resize {min-width: 320px !important;}}
+
+#live-console {margin-top: 8px !important;}
+#live-console textarea {
+  min-height: 150px !important; max-height: 190px !important; overflow-y: auto !important;
+  background: #101522 !important; color: #cbd5e1 !important;
+  font-family: Consolas, "Cascadia Mono", monospace !important; font-size: 12px !important;
+  line-height: 1.35 !important;
+}

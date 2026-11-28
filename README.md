@@ -1,6 +1,6 @@
 # MUNGON - Windows local ComfyUI GUI
 
-The current Windows GUI is in [MUNGON](MUNGON/). Launch MUNGON.bat in that folder. The previous mungbeans-current GUI files are retired from the repository; existing RunPod scripts and workflows remain available below.
+The current Windows GUI is in [MUNGON](MUNGON/). Launch MUNGON.bat in that folder. The previous mungbeans-current GUI files are retired from the repository; existing RunPod scripts and workflows remain available below. The separate [MUNGPOD](MUNGPOD/) folder is the RunPod add-on; it scans each pod's model folders and keeps settings separate.
 
 ---
 
