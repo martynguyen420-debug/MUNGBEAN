@@ -59,7 +59,7 @@ import socket
 
 APP_DIR = Path(__file__).resolve().parent
 SETTINGS_FILE = APP_DIR / "universal_comfy_gui_runpod_settings.json"
-COMFY_URL = "http://127.0.0.1:8191"
+COMFY_URL = "http://127.0.0.1:8198"
 
 # Default portable install inferred from the user's machine screenshots/setup.
 DEFAULT_COMFY_ROOT = Path(r"F:\AI\OmniXPU-B60-Test")
@@ -72,10 +72,12 @@ MODEL_ROOTS = [
     Path(r"F:\AI\KreaNoct_V4_Q4"),
     Path(r"F:\AI\KreaNoct_V4_Q6"),
     Path(r"C:\ai\AI Playground\resources\models\ComfyUI"),
+    Path(r"C:\AI\ComfyUI_windows_portable_b580\ComfyUI\models"),
     Path(r"D:\ai\models\ComfyUI"),
     Path(r"D:\AI-Models"),
     Path(r"D:\AI_Models"),
     Path(r"D:\models"),
+    Path(r"C:\ai"),  # direct-root Klein diffusion models
     DEFAULT_COMFY_ROOT / "ComfyUI" / "models",
 ]
 
@@ -138,6 +140,7 @@ FAMILY_OVERRIDES = ["Auto", "FLUX 3", "FLUX.2 Klein", "Qwen Rapid", "Qwen Image 
 SAMPLERS = [
     "euler", "euler_ancestral", "heun", "lms", "dpm_2", "dpm_2_ancestral",
     "dpmpp_2s_ancestral", "dpmpp_2m", "dpmpp_sde", "dpmpp_2m_sde",
+    "dpmpp_3m_sde_gpu", "lcm",
 ]
 SCHEDULERS = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"]
 SCALE_METHODS = ["lanczos", "bicubic", "bilinear", "nearest-exact", "area"]
@@ -390,6 +393,26 @@ def scan_all_models() -> Dict[str, List[Tuple[str, str]]]:
                 seen[bucket].add(key)
                 label = Path(rel).name
                 buckets[bucket].append((label, _encode_choice(sub, rel, idx)))
+
+        # C:\\ai stores these FLUX.2 Klein diffusion weights directly at its root.
+        if str(root).casefold() == r"c:\ai":
+            try:
+                direct_models = [
+                    path for path in root.iterdir()
+                    if path.is_file() and path.name.casefold().endswith(MODEL_EXTS)
+                ]
+            except (PermissionError, OSError):
+                direct_models = []
+            for path in direct_models:
+                label = path.name
+                if "lora" in label.casefold():
+                    continue
+                key = ("diffusion_models", label.casefold())
+                if key not in seen["models"]:
+                    seen["models"].add(key)
+                    buckets["models"].append(
+                        (label, _encode_choice("diffusion_models", label, idx))
+                    )
     # A few MOSS releases are duplicated under checkpoints and diffusion_models.
     # Keep the valid diffusion-model entry only so MUNGON cannot route the copy
     # through CheckpointLoaderSimple by accident.
@@ -482,6 +505,8 @@ def detect_family(model_value: Optional[str], override: str = "Auto") -> str:
         return "Krea 2"
     if "flux3" in s or "flux-3" in s or "flux_3" in s:
         return "FLUX 3"
+    if any(token in s for token in ("mopmixtureofperverts", "mixture-of-perverts", "biglustydonut")):
+        return "SDXL / Pony"
     if override and override != "Auto":
         return override
     if "klein" in s or "flux-2" in s or "flux2" in s:
@@ -497,7 +522,8 @@ def detect_family(model_value: Optional[str], override: str = "Auto") -> str:
 
 def is_klein_9b(model_value: Optional[str]) -> bool:
     name = choice_rel(model_value).casefold()
-    return "9b" in name or "9-b" in name or "aisha" in name
+    # The 18 GB BF16 Klein 9B SNOFS file has no explicit 9B token in its filename.
+    return "9b" in name or "9-b" in name or "aisha" in name or "snofs_1_4_kleindistilled" in name
 
 
 def is_model_only_flux_file(model_value: Optional[str]) -> bool:
@@ -509,7 +535,12 @@ def is_model_only_flux_file(model_value: Optional[str]) -> bool:
     """
     _cat, rel, _ = _decode_choice(model_value) if model_value else ("", "", 0)
     low = rel.casefold()
-    return "aisha" in low or "flux2klein" in low or "flux-2-klein" in low
+    return (
+        "aisha" in low
+        or "flux2klein" in low
+        or "flux-2-klein" in low
+        or ("snofs" in low and "klein" in low)
+    )
 
 
 def effective_mode(mode: str, family: str, has_main: bool) -> str:
@@ -592,6 +623,20 @@ def recommendations(model_value: Optional[str], family: str, mode: str) -> Dict[
                 "Starting point: Euler Ancestral ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Beta ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ 4 steps ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ CFG 1.2.\n"
                 "Use a reference image for edit mode. Auto-picks Qwen VL encoder when present."
             )
+        }
+    if family == "SDXL / Pony" and "mopmixtureofperverts" in low:
+        is_edit = "img2img" in mode.casefold()
+        return {
+            "sampler": "lcm", "scheduler": "karras", "steps": 9, "cfg": 1.0,
+            "denoise": 0.65 if is_edit else 1.0,
+            "text": "Mixture of Perverts v5.1 DMD SDXL: 9 steps, LCM, Karras, CFG 1.0. For img2img, start near 0.65 denoise; adjust from 0.5 to 0.8.",
+        }
+    if family == "SDXL / Pony" and "biglustydonut" in low:
+        is_edit = "img2img" in mode.casefold()
+        return {
+            "sampler": "dpmpp_3m_sde_gpu", "scheduler": "karras", "steps": 30, "cfg": 2.0,
+            "denoise": 0.65 if is_edit else 1.0,
+            "text": "BigLustyDonutMix v1.2 SDXL: 30 steps, DPM++ 3M SDE GPU, Karras, CFG 2.0. For img2img, start near 0.65 denoise.",
         }
     if family == "SDXL / Pony":
         return {
@@ -2250,11 +2295,11 @@ def refresh_models_ui(family_override: str, model_value: Optional[str], show_all
     )
 
 
-def on_model_change(model_value, family_override, mode, show_all_loras, text_preset, current_clip):
+def on_model_change(model_value, family_override, mode, show_all_loras, text_preset, current_clip, main_image=None):
     """When the user picks a model, auto-fill family, text encoder, VAE, and LoRA lists."""
     scans = current_scans()
     family = detect_family(model_value, family_override)
-    eff = effective_mode(mode, family, False)
+    eff = effective_mode(mode, family, pilify(main_image) is not None)
     rec = recommendations(model_value, family, eff)
     loras = compatible_lora_choices(scans["loras"], family, show_all_loras)
 
@@ -2295,6 +2340,13 @@ def on_model_change(model_value, family_override, mode, show_all_loras, text_pre
     )
 
 
+def on_main_image_change(model_value, family_override, mode, main_image):
+    family = detect_family(model_value, family_override)
+    eff = effective_mode(mode, family, pilify(main_image) is not None)
+    rec = recommendations(model_value, family, eff)
+    return rec["text"], rec["steps"], rec["cfg"], rec["sampler"], rec["scheduler"], rec["denoise"]
+
+
 def apply_recommended(model_value, family_override, mode, main_image):
     family = detect_family(model_value, family_override)
     eff = effective_mode(mode, family, main_image is not None)
@@ -2324,15 +2376,18 @@ def on_text_preset(preset: str, current_clip: Optional[str]):
 def on_mode_change(mode: str):
     is_generate = mode in ("FLUX 3 - Image Generate", "FLUX.2 Klein - Image Generate", "Checkpoint - Generate")
     is_upscale = mode in ("Ultimate SD Upscale", "Standard Model Upscale")
+    is_standard_upscale = mode == "Standard Model Upscale"
     image_needed = mode in ("FLUX 3 - Image Edit", "FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Checkpoint - Img2Img", "Ultimate SD Upscale", "Standard Model Upscale", "Auto")
     reference_supported = mode in ("FLUX 3 - Image Edit", "FLUX.2 Klein - Image Edit", "Qwen Rapid - Image Edit", "Auto")
-    negative_supported = True
     return (
         gr.update(visible=image_needed),
         gr.update(visible=reference_supported),
-        gr.update(visible=negative_supported),
+        gr.update(visible=not is_standard_upscale),
         gr.update(value=False if is_generate or is_upscale else True, interactive=not is_generate and not is_upscale),
         gr.update(visible=is_upscale),
+        gr.update(visible=not is_standard_upscale),
+        gr.update(visible=not is_standard_upscale),
+        gr.update(visible=not is_standard_upscale),
     )
 
 
@@ -2409,8 +2464,11 @@ with gr.Blocks(title="MUNGON | Local ComfyUI") as demo:
         with gr.Tab("Generate / Edit"):
             with gr.Row():
                 with gr.Column(scale=1, elem_classes=["mungon-resize"]):
-                    with gr.Accordion("Manual settings - mode, loaders and sampling", open=True, visible=False) as manual_models_group:
-                        mode = gr.Dropdown(MODES, value=SETTINGS.get("last_mode", "Auto"), label="Mode")
+                    mode = gr.Dropdown(
+                        MODES, value=SETTINGS.get("last_mode", "Auto"), label="Mode",
+                        info="Auto uses the selected model and Main Image to choose text-to-image or img2img. Choose Standard Model Upscale for the simple upscaler.",
+                    )
+                    with gr.Accordion("Manual settings - loaders and sampling", open=True, visible=False) as manual_models_group:
                         family_override = gr.Dropdown(FAMILY_OVERRIDES, value=SETTINGS.get("last_family_override", "Auto"), label="Model Family Override")
                         detected_family = gr.Textbox(value=DEFAULT_FAMILY, label="Detected Family", interactive=False)
                         gr.Markdown("### Text Encoder / VAE")
@@ -2473,6 +2531,7 @@ with gr.Blocks(title="MUNGON | Local ComfyUI") as demo:
                     upscale_group = gr.Group(visible=False)
                     with upscale_group:
                         gr.Markdown("### Upscale")
+                        gr.Markdown("No prompt or diffusion steps needed. Choose the source image, upscaler, and final scale.")
                         upscale_dd = gr.Dropdown(choices=SCANS["upscalers"], value=DEFAULT_UPSCALE, label="Upscale Model")
                         upscale_by = gr.Slider(1.0, 4.0, value=2.0, step=0.25, label="Upscale By")
 
@@ -2584,13 +2643,14 @@ with gr.Blocks(title="MUNGON | Local ComfyUI") as demo:
     refresh_status_btn.click(status_text, outputs=comfy_status)
     queue_timer.tick(queue_status_text, outputs=queue_status, show_progress="hidden")
     demo.load(queue_status_text, outputs=queue_status)
+    demo.load(on_mode_change, inputs=mode, outputs=[main_group, reference_group, negative_prompt, use_source, upscale_group, prompt, prompt_history, steps])
     cancel_btn.click(cancel_generation, outputs=[info, live_console])
 
     use_lora.change(on_lora_toggle, inputs=use_lora, outputs=[lora_dd, lora_strength])
     use_lora2.change(on_lora_toggle, inputs=use_lora2, outputs=[lora2_dd, lora2_strength])
     use_lora3.change(on_lora_toggle, inputs=use_lora3, outputs=[lora3_dd, lora3_strength])
     text_encoder_preset.change(on_text_preset, inputs=[text_encoder_preset, clip_dd], outputs=clip_dd)
-    mode.change(on_mode_change, inputs=mode, outputs=[main_group, reference_group, negative_prompt, use_source, upscale_group])
+    mode.change(on_mode_change, inputs=mode, outputs=[main_group, reference_group, negative_prompt, use_source, upscale_group, prompt, prompt_history, steps])
     use_source.change(on_use_source, inputs=[use_source, main_img], outputs=[manual_res_group, width, height, res_preset])
     width.change(on_width_change, inputs=[width, preserve_aspect, main_img], outputs=height)
     preserve_aspect.change(on_width_change, inputs=[width, preserve_aspect, main_img], outputs=height)
@@ -2599,18 +2659,23 @@ with gr.Blocks(title="MUNGON | Local ComfyUI") as demo:
 
     model_dd.change(
         on_model_change,
-        inputs=[model_dd, family_override, mode, show_all_loras, text_encoder_preset, clip_dd],
+        inputs=[model_dd, family_override, mode, show_all_loras, text_encoder_preset, clip_dd, main_img],
         outputs=[detected_family, recommendation_box, lora_dd, lora2_dd, lora3_dd, clip_dd, vae_dd, my_note, steps, cfg, sampler, scheduler, denoise],
     )
     family_override.change(
         on_model_change,
-        inputs=[model_dd, family_override, mode, show_all_loras, text_encoder_preset, clip_dd],
+        inputs=[model_dd, family_override, mode, show_all_loras, text_encoder_preset, clip_dd, main_img],
         outputs=[detected_family, recommendation_box, lora_dd, lora2_dd, lora3_dd, clip_dd, vae_dd, my_note, steps, cfg, sampler, scheduler, denoise],
     )
     show_all_loras.change(
         on_model_change,
-        inputs=[model_dd, family_override, mode, show_all_loras, text_encoder_preset, clip_dd],
+        inputs=[model_dd, family_override, mode, show_all_loras, text_encoder_preset, clip_dd, main_img],
         outputs=[detected_family, recommendation_box, lora_dd, lora2_dd, lora3_dd, clip_dd, vae_dd, my_note, steps, cfg, sampler, scheduler, denoise],
+    )
+    main_img.change(
+        on_main_image_change,
+        inputs=[model_dd, family_override, mode, main_img],
+        outputs=[recommendation_box, steps, cfg, sampler, scheduler, denoise],
     )
 
     apply_rec_btn.click(
